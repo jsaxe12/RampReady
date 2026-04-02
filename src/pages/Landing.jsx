@@ -158,12 +158,15 @@ function SignInModal({ open, onClose }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loginRole, setLoginRole] = useState('fbo')
 
   useEffect(() => {
-    if (open) { clearError(); setEmail(''); setPassword('') }
+    if (open) { clearError(); setEmail(''); setPassword(''); setLoginRole('fbo') }
   }, [open, clearError])
 
   if (!open) return null
+
+  const isPilot = loginRole === 'pilot'
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -186,28 +189,60 @@ function SignInModal({ open, onClose }) {
         </button>
 
         <h2 className="text-[18px] font-semibold text-white mb-1">Welcome back</h2>
-            <p className="text-[13px] text-[#717784] mb-5">Sign in to your RampReady account</p>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-[11px] text-[#717784] uppercase tracking-wider mb-1.5">Email</label>
-                <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); clearError() }} placeholder="you@example.com" required autoFocus
-                  className="w-full h-10 bg-[#0e121b] border border-[#2b303b] focus:border-[#3b82f6] rounded-lg px-3 text-[13px] text-white placeholder:text-[#525866] focus:outline-none" />
-              </div>
-              <div>
-                <label className="block text-[11px] text-[#717784] uppercase tracking-wider mb-1.5">Password</label>
-                <input type="password" value={password} onChange={(e) => { setPassword(e.target.value); clearError() }} placeholder="••••••••" required
-                  className="w-full h-10 bg-[#0e121b] border border-[#2b303b] focus:border-[#3b82f6] rounded-lg px-3 text-[13px] text-white placeholder:text-[#525866] focus:outline-none" />
-              </div>
-              {error && (
-                <div className="bg-red-500/10 rounded-lg px-3 py-2">
-                  <p className="text-[12px] text-red-400">{error}</p>
-                </div>
-              )}
-              <button type="submit" disabled={loading}
-                className="w-full h-10 bg-[#3b82f6] hover:bg-[#2563eb] disabled:opacity-50 text-white text-[13px] font-semibold rounded-lg cursor-pointer border-none transition-colors">
-                {loading ? 'Signing in...' : 'Sign In'}
-              </button>
-            </form>
+        <p className="text-[13px] text-[#717784] mb-4">Sign in to your RampReady account</p>
+
+        {/* Role toggle */}
+        <div className="flex bg-[#0e121b] rounded-lg p-0.5 mb-5 ring-1 ring-[#2b303b]">
+          <button
+            type="button"
+            onClick={() => { setLoginRole('fbo'); clearError() }}
+            className={`flex-1 h-9 text-[12px] font-semibold rounded-md border-none cursor-pointer transition-all flex items-center justify-center gap-1.5 ${
+              !isPilot ? 'bg-[#3b82f6]/20 text-[#3b82f6]' : 'bg-transparent text-[#717784]'
+            }`}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+            FBO Operator
+          </button>
+          <button
+            type="button"
+            onClick={() => { setLoginRole('pilot'); clearError() }}
+            className={`flex-1 h-9 text-[12px] font-semibold rounded-md border-none cursor-pointer transition-all flex items-center justify-center gap-1.5 ${
+              isPilot ? 'bg-[#34c759]/20 text-[#34c759]' : 'bg-transparent text-[#717784]'
+            }`}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" />
+            </svg>
+            Pilot
+          </button>
+        </div>
+
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="block text-[11px] text-[#717784] uppercase tracking-wider mb-1.5">Email</label>
+            <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); clearError() }}
+              placeholder={isPilot ? 'pilot@email.com' : 'you@yourfbo.com'} required autoFocus
+              className="w-full h-10 bg-[#0e121b] border border-[#2b303b] focus:border-[#3b82f6] rounded-lg px-3 text-[13px] text-white placeholder:text-[#525866] focus:outline-none" />
+          </div>
+          <div>
+            <label className="block text-[11px] text-[#717784] uppercase tracking-wider mb-1.5">Password</label>
+            <input type="password" value={password} onChange={(e) => { setPassword(e.target.value); clearError() }} placeholder="••••••••" required
+              className="w-full h-10 bg-[#0e121b] border border-[#2b303b] focus:border-[#3b82f6] rounded-lg px-3 text-[13px] text-white placeholder:text-[#525866] focus:outline-none" />
+          </div>
+          {error && (
+            <div className="bg-red-500/10 rounded-lg px-3 py-2">
+              <p className="text-[12px] text-red-400">{error}</p>
+            </div>
+          )}
+          <button type="submit" disabled={loading}
+            className={`w-full h-10 disabled:opacity-50 text-white text-[13px] font-semibold rounded-lg cursor-pointer border-none transition-colors ${
+              isPilot ? 'bg-[#34c759] hover:bg-[#2db84e]' : 'bg-[#3b82f6] hover:bg-[#2563eb]'
+            }`}>
+            {loading ? 'Signing in...' : `Sign In as ${isPilot ? 'Pilot' : 'FBO'}`}
+          </button>
+        </form>
       </div>
     </div>
   )
