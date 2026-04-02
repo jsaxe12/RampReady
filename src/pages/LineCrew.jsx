@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useFBO } from '../context/FBOContext'
 import { useAuth } from '../context/AuthContext'
 import ServiceChip from '../components/ServiceChip'
+import LiveTrackModal from '../components/LiveTrackModal'
 
 function RoleBadge({ role }) {
   const styles = {
@@ -144,6 +145,7 @@ function ChatPanel({ movementId, movementType, senderRole }) {
 
 function AircraftCard({ aircraft, type, senderRole }) {
   const [expanded, setExpanded] = useState(false)
+  const [trackOpen, setTrackOpen] = useState(false)
   const isArrival = type === 'arrival'
   const time = isArrival ? aircraft.eta : aircraft.etd
   const timeLabel = isArrival ? 'ETA' : 'ETD'
@@ -199,6 +201,19 @@ function AircraftCard({ aircraft, type, senderRole }) {
             </p>
           )}
 
+          {isArrival && (
+            <button
+              onClick={() => setTrackOpen(true)}
+              className="h-7 px-2.5 text-[12px] font-medium rounded-md cursor-pointer border-none flex items-center gap-1 bg-sky/15 hover:bg-sky/25 text-sky"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polygon points="10 8 16 12 10 16 10 8" />
+              </svg>
+              Live Track
+            </button>
+          )}
+
           <ChatPanel
             movementId={aircraft.id}
             movementType={type}
@@ -206,6 +221,8 @@ function AircraftCard({ aircraft, type, senderRole }) {
           />
         </div>
       )}
+
+      {trackOpen && isArrival && <LiveTrackModal arrival={aircraft} onClose={() => setTrackOpen(false)} />}
     </div>
   )
 }

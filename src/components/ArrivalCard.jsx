@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useFBO } from '../context/FBOContext'
 import { useAuth } from '../context/AuthContext'
 import ServiceChip from './ServiceChip'
+import LiveTrackModal from './LiveTrackModal'
 
 function RoleBadge({ role }) {
   const styles = {
@@ -126,6 +127,7 @@ export default function ArrivalCard({ arrival }) {
   const [confirming, setConfirming] = useState(false)
   const [declining, setDeclining] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
+  const [trackOpen, setTrackOpen] = useState(false)
 
   const handleConfirm = async () => {
     setConfirming(true)
@@ -229,23 +231,39 @@ export default function ArrivalCard({ arrival }) {
                 </button>
               </>
             )}
-            <button
-              onClick={() => setChatOpen(!chatOpen)}
-              className={`h-7 px-2.5 text-[12px] font-medium rounded-md cursor-pointer border-none flex items-center gap-1 ${
-                chatOpen ? 'bg-sky/20 text-sky' : 'bg-surface-700 hover:bg-surface-600 text-text-secondary'
-              } ${isConfirmed ? '' : 'ml-auto'}`}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-              </svg>
-              <span className="hidden sm:inline">Chat</span>
-            </button>
+            <div className={`flex items-center gap-1.5 ${isConfirmed ? '' : 'ml-auto'}`}>
+              <button
+                onClick={() => setTrackOpen(true)}
+                className="h-7 px-2.5 text-[12px] font-medium rounded-md cursor-pointer border-none flex items-center gap-1 bg-sky/15 hover:bg-sky/25 text-sky"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polygon points="10 8 16 12 10 16 10 8" />
+                </svg>
+                <span className="hidden sm:inline">Live Track</span>
+                <span className="sm:hidden">Track</span>
+              </button>
+              <button
+                onClick={() => setChatOpen(!chatOpen)}
+                className={`h-7 px-2.5 text-[12px] font-medium rounded-md cursor-pointer border-none flex items-center gap-1 ${
+                  chatOpen ? 'bg-sky/20 text-sky' : 'bg-surface-700 hover:bg-surface-600 text-text-secondary'
+                }`}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+                </svg>
+                <span className="hidden sm:inline">Chat</span>
+              </button>
+            </div>
           </div>
 
           {/* Chat panel */}
           {chatOpen && <ChatInline arrivalId={arrival.id} />}
         </div>
       </div>
+
+      {/* Live Track modal */}
+      {trackOpen && <LiveTrackModal arrival={arrival} onClose={() => setTrackOpen(false)} />}
     </div>
   )
 }
