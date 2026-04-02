@@ -6,9 +6,9 @@ export default function Navbar() {
   const { user, role, fboProfile, pilotProfile, logout } = useAuth()
   const navigate = useNavigate()
 
-  const handleLogout = async () => {
-    await logout()
+  const handleLogout = () => {
     navigate('/', { replace: true })
+    logout()
   }
 
   const linkClass = ({ isActive }) =>
