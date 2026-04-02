@@ -235,15 +235,15 @@ function Nav({ onSignIn }) {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={onSignIn} className="hidden sm:inline-block text-[14px] text-white px-4 py-2 bg-transparent border-none cursor-pointer hover:opacity-70 transition-opacity">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <button onClick={onSignIn} className="text-[12px] sm:text-[14px] text-white px-2.5 sm:px-4 py-2 bg-transparent border-none cursor-pointer hover:opacity-70 transition-opacity">
             Sign In
           </button>
-          <button onClick={() => scroll('founding')} className="hidden sm:inline-block text-[14px] font-medium bg-[#f5f7fa] text-[#0e121b] h-10 px-4 rounded-lg border-none cursor-pointer hover:bg-white transition-colors">
-            Start for free
+          <button onClick={() => scroll('founding')} className="text-[11px] sm:text-[14px] font-medium bg-[#f5f7fa] text-[#0e121b] h-8 sm:h-10 px-3 sm:px-4 rounded-lg border-none cursor-pointer hover:bg-white transition-colors whitespace-nowrap">
+            Start Free
           </button>
-          <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden bg-transparent border-none cursor-pointer text-white p-2">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden bg-transparent border-none cursor-pointer text-white p-1.5 sm:p-2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               {menuOpen ? <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></> : <><line x1="3" y1="7" x2="21" y2="7" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="17" x2="21" y2="17" /></>}
             </svg>
           </button>
@@ -295,7 +295,7 @@ function Hero() {
             <button onClick={() => scroll('founding')} className="text-[14px] sm:text-[16px] font-medium bg-[#3b82f6] text-white h-11 sm:h-[3.25rem] px-4 sm:px-6 rounded-lg border-none cursor-pointer hover:bg-[#2563eb] transition-colors animate-pulse-glow">
               Become a Founding FBO →
             </button>
-            <button onClick={() => scroll('benefits')} className="text-[14px] sm:text-[16px] font-medium bg-[#222530] text-white h-11 sm:h-[3.25rem] px-4 sm:px-6 rounded-lg border-none cursor-pointer hover:bg-[#2b303b] transition-colors">
+            <button onClick={() => scroll('benefits')} className="hidden sm:inline-block text-[14px] sm:text-[16px] font-medium bg-[#222530] text-white h-11 sm:h-[3.25rem] px-4 sm:px-6 rounded-lg border-none cursor-pointer hover:bg-[#2b303b] transition-colors">
               Learn more
             </button>
           </div>
