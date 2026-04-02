@@ -1,12 +1,22 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { FBOProvider } from './context/FBOContext'
-import { PilotProvider } from './context/PilotContext'
+import { PilotPortalProvider } from './pilot/PilotContext'
 import Navbar from './components/Navbar'
 import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
 import LineCrew from './pages/LineCrew'
-import PilotPortal from './pages/PilotPortal'
+import PilotLayout from './pilot/PilotLayout'
+import Home from './pilot/screens/Home'
+import Search from './pilot/screens/Search'
+import AirportDetail from './pilot/screens/AirportDetail'
+import Calculator from './pilot/screens/Calculator'
+import NewRequest from './pilot/screens/NewRequest'
+import RequestTracking from './pilot/screens/RequestTracking'
+import History from './pilot/screens/History'
+import Messages from './pilot/screens/Messages'
+import Profile from './pilot/screens/Profile'
+import Notifications from './pilot/screens/Notifications'
 
 function ProtectedRoute({ children, allowedRole }) {
   const { user, role, loading } = useAuth()
@@ -60,19 +70,31 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      {/* Pilot portal routes */}
       <Route
         path="/pilot"
         element={
           <ProtectedRoute allowedRole="pilot">
-            <PilotProvider>
-              <div className="min-h-screen bg-surface-900">
-                <Navbar />
-                <PilotPortal />
-              </div>
-            </PilotProvider>
+            <PilotPortalProvider>
+              <PilotLayout />
+            </PilotPortalProvider>
           </ProtectedRoute>
         }
-      />
+      >
+        <Route index element={<Home />} />
+        <Route path="search" element={<Search />} />
+        <Route path="airport/:icao" element={<AirportDetail />} />
+        <Route path="calculator/:fboId" element={<Calculator />} />
+        <Route path="request/new" element={<NewRequest />} />
+        <Route path="request/:requestId" element={<RequestTracking />} />
+        <Route path="history" element={<History />} />
+        <Route path="messages" element={<Messages />} />
+        <Route path="messages/:requestId" element={<Messages />} />
+        <Route path="profile" element={<Profile />} />
+        <Route path="notifications" element={<Notifications />} />
+      </Route>
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
