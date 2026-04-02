@@ -5,7 +5,6 @@ import Navbar from './components/Navbar'
 import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
 import LineCrew from './pages/LineCrew'
-import Login from './pages/Login'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -19,20 +18,16 @@ function ProtectedRoute({ children }) {
       </div>
     )
   }
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) return <Navigate to="/" replace />
   return children
 }
 
 function AppRoutes() {
-  const { user, loading } = useAuth()
-
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
 
-      <Route path="/login" element={
-        loading ? null : user ? <Navigate to="/dashboard" replace /> : <Login />
-      } />
+      <Route path="/login" element={<Navigate to="/" replace />} />
 
       <Route
         path="/dashboard"
