@@ -151,7 +151,7 @@ function GradientHeading({ as: Tag = 'h2', className = '', children }) {
   )
 }
 
-/* ─── Sign-In Modal ─── */
+/* ─── Sign-In / Sign-Up Modal ─── */
 function SignInModal({ open, onClose }) {
   const { login, error, clearError } = useAuth()
   const navigate = useNavigate()
@@ -165,12 +165,16 @@ function SignInModal({ open, onClose }) {
 
   if (!open) return null
 
-  const handleSubmit = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault()
     setLoading(true)
-    const ok = await login(email, password)
+    const u = await login(email, password)
     setLoading(false)
-    if (ok) { onClose(); navigate('/dashboard', { replace: true }) }
+    if (u) {
+      onClose()
+      const userRole = u.user_metadata?.role || 'fbo'
+      navigate(userRole === 'pilot' ? '/pilot' : '/dashboard', { replace: true })
+    }
   }
 
   return (
@@ -180,29 +184,30 @@ function SignInModal({ open, onClose }) {
         <button onClick={onClose} className="absolute top-3 right-3 text-[#717784] hover:text-white bg-transparent border-none cursor-pointer p-1">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
-        <h2 className="text-[18px] font-semibold text-white mb-1">Sign in to your FBO</h2>
-        <p className="text-[13px] text-[#717784] mb-5">Access your RampReady dashboard</p>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-[11px] text-[#717784] uppercase tracking-wider mb-1.5">Email</label>
-            <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); clearError() }} placeholder="you@yourfbo.com" required autoFocus
-              className="w-full h-10 bg-[#0e121b] border border-[#2b303b] focus:border-[#3b82f6] rounded-lg px-3 text-[13px] text-white placeholder:text-[#525866] focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-[11px] text-[#717784] uppercase tracking-wider mb-1.5">Password</label>
-            <input type="password" value={password} onChange={(e) => { setPassword(e.target.value); clearError() }} placeholder="••••••••" required
-              className="w-full h-10 bg-[#0e121b] border border-[#2b303b] focus:border-[#3b82f6] rounded-lg px-3 text-[13px] text-white placeholder:text-[#525866] focus:outline-none" />
-          </div>
-          {error && (
-            <div className="bg-red-500/10 rounded-lg px-3 py-2">
-              <p className="text-[12px] text-red-400">{error}</p>
-            </div>
-          )}
-          <button type="submit" disabled={loading}
-            className="w-full h-10 bg-[#3b82f6] hover:bg-[#2563eb] disabled:opacity-50 text-white text-[13px] font-semibold rounded-lg cursor-pointer border-none transition-colors">
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
+
+        <h2 className="text-[18px] font-semibold text-white mb-1">Welcome back</h2>
+            <p className="text-[13px] text-[#717784] mb-5">Sign in to your RampReady account</p>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-[11px] text-[#717784] uppercase tracking-wider mb-1.5">Email</label>
+                <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); clearError() }} placeholder="you@example.com" required autoFocus
+                  className="w-full h-10 bg-[#0e121b] border border-[#2b303b] focus:border-[#3b82f6] rounded-lg px-3 text-[13px] text-white placeholder:text-[#525866] focus:outline-none" />
+              </div>
+              <div>
+                <label className="block text-[11px] text-[#717784] uppercase tracking-wider mb-1.5">Password</label>
+                <input type="password" value={password} onChange={(e) => { setPassword(e.target.value); clearError() }} placeholder="••••••••" required
+                  className="w-full h-10 bg-[#0e121b] border border-[#2b303b] focus:border-[#3b82f6] rounded-lg px-3 text-[13px] text-white placeholder:text-[#525866] focus:outline-none" />
+              </div>
+              {error && (
+                <div className="bg-red-500/10 rounded-lg px-3 py-2">
+                  <p className="text-[12px] text-red-400">{error}</p>
+                </div>
+              )}
+              <button type="submit" disabled={loading}
+                className="w-full h-10 bg-[#3b82f6] hover:bg-[#2563eb] disabled:opacity-50 text-white text-[13px] font-semibold rounded-lg cursor-pointer border-none transition-colors">
+                {loading ? 'Signing in...' : 'Sign In'}
+              </button>
+            </form>
       </div>
     </div>
   )

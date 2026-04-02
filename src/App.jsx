@@ -1,13 +1,15 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { FBOProvider } from './context/FBOContext'
+import { PilotProvider } from './context/PilotContext'
 import Navbar from './components/Navbar'
 import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
 import LineCrew from './pages/LineCrew'
+import PilotPortal from './pages/PilotPortal'
 
-function ProtectedRoute({ children }) {
-  const { user, loading } = useAuth()
+function ProtectedRoute({ children, allowedRole }) {
+  const { user, role, loading } = useAuth()
   if (loading) {
     return (
       <div className="min-h-screen bg-surface-900 flex items-center justify-center">
@@ -19,6 +21,9 @@ function ProtectedRoute({ children }) {
     )
   }
   if (!user) return <Navigate to="/" replace />
+  if (allowedRole && role !== allowedRole) {
+    return <Navigate to={role === 'pilot' ? '/pilot' : '/dashboard'} replace />
+  }
   return children
 }
 
@@ -32,7 +37,7 @@ function AppRoutes() {
       <Route
         path="/dashboard"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRole="fbo">
             <FBOProvider>
               <div className="min-h-screen bg-surface-900">
                 <Navbar />
@@ -45,13 +50,26 @@ function AppRoutes() {
       <Route
         path="/linecrew"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRole="fbo">
             <FBOProvider>
               <div className="min-h-screen bg-surface-900">
                 <Navbar />
                 <LineCrew />
               </div>
             </FBOProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pilot"
+        element={
+          <ProtectedRoute allowedRole="pilot">
+            <PilotProvider>
+              <div className="min-h-screen bg-surface-900">
+                <Navbar />
+                <PilotPortal />
+              </div>
+            </PilotProvider>
           </ProtectedRoute>
         }
       />

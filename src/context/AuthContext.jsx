@@ -5,24 +5,38 @@ const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
+  const [role, setRole] = useState(null) // 'fbo' | 'pilot' | null
   const [fboProfile, setFboProfile] = useState(null)
+  const [pilotProfile, setPilotProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  const fetchProfile = useCallback(async (userId) => {
-    const { data, error: err } = await supabase
-      .from('fbo_profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    if (!err && data) setFboProfile(data)
+  const fetchProfile = useCallback(async (u) => {
+    const userRole = u.user_metadata?.role || 'fbo'
+    setRole(userRole)
+
+    if (userRole === 'pilot') {
+      const { data, error: err } = await supabase
+        .from('pilot_profiles')
+        .select('*')
+        .eq('id', u.id)
+        .single()
+      if (!err && data) setPilotProfile(data)
+    } else {
+      const { data, error: err } = await supabase
+        .from('fbo_profiles')
+        .select('*')
+        .eq('id', u.id)
+        .single()
+      if (!err && data) setFboProfile(data)
+    }
   }, [])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       const u = session?.user ?? null
       setUser(u)
-      if (u) fetchProfile(u.id)
+      if (u) fetchProfile(u)
       setLoading(false)
     })
 
@@ -30,9 +44,11 @@ export function AuthProvider({ children }) {
       const u = session?.user ?? null
       setUser(u)
       if (u) {
-        fetchProfile(u.id)
+        fetchProfile(u)
       } else {
         setFboProfile(null)
+        setPilotProfile(null)
+        setRole(null)
       }
       setLoading(false)
     })
@@ -42,24 +58,49 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     setError(null)
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
     if (err) {
       setError(err.message)
-      return false
+      return null
     }
-    return true
+    return data.user
+  }, [])
+
+  const signUp = useCallback(async ({ email, password, role: userRole, displayName, homeAirport, tailNumber }) => {
+    setError(null)
+    const { data, error: err } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { role: userRole } },
+    })
+    if (err) {
+      setError(err.message)
+      return null
+    }
+    if (data.user && userRole === 'pilot') {
+      await supabase.from('pilot_profiles').insert({
+        id: data.user.id,
+        display_name: displayName,
+        email,
+        home_airport: homeAirport || null,
+        tail_numbers: tailNumber ? [tailNumber] : [],
+      })
+    }
+    return data.user
   }, [])
 
   const logout = useCallback(async () => {
     await supabase.auth.signOut()
     setUser(null)
     setFboProfile(null)
+    setPilotProfile(null)
+    setRole(null)
   }, [])
 
   const clearError = useCallback(() => setError(null), [])
 
   return (
-    <AuthContext.Provider value={{ user, fboProfile, loading, error, login, logout, clearError }}>
+    <AuthContext.Provider value={{ user, role, fboProfile, pilotProfile, loading, error, login, signUp, logout, clearError }}>
       {children}
     </AuthContext.Provider>
   )
