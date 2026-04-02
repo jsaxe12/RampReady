@@ -42,10 +42,8 @@ export function AuthProvider({ children }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const u = session?.user ?? null
-      setUser(u)
-      if (u) {
-        fetchProfile(u)
-      } else {
+      if (!u) {
+        setUser(null)
         setFboProfile(null)
         setPilotProfile(null)
         setRole(null)
@@ -63,8 +61,12 @@ export function AuthProvider({ children }) {
       setError(err.message)
       return null
     }
-    return data.user
-  }, [])
+    // Pre-fetch profile immediately so we don't wait for onAuthStateChange
+    const u = data.user
+    setUser(u)
+    await fetchProfile(u)
+    return u
+  }, [fetchProfile])
 
   const signUp = useCallback(async ({ email, password, role: userRole, displayName, homeAirport, tailNumber }) => {
     setError(null)
