@@ -273,7 +273,7 @@ function Hero() {
   const parallax = useParallax(0.08)
 
   return (
-    <section id="hero" className="relative overflow-hidden pt-[7.5rem] pb-0" style={{ background: c.bg, borderBottomLeftRadius: '2.5rem', borderBottomRightRadius: '2.5rem' }}>
+    <section id="hero" className="relative overflow-hidden pt-[5.5rem] sm:pt-[7.5rem] pb-0" style={{ background: c.bg, borderBottomLeftRadius: '2.5rem', borderBottomRightRadius: '2.5rem' }}>
       {/* Blue glow blobs — floating */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute bottom-[10%] left-0 right-0 min-h-[50%] opacity-100 animate-float" style={{ background: 'linear-gradient(90deg, #3b82f64d, #2563eb 50%, #3b82f64d)', filter: 'blur(100px)', mixBlendMode: 'plus-lighter' }} />
@@ -282,27 +282,27 @@ function Hero() {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 max-w-[79rem] mx-auto px-8">
-        <div className="max-w-[800px] mx-auto text-center mb-10">
+      <div className="relative z-10 max-w-[79rem] mx-auto px-4 sm:px-8">
+        <div className="max-w-[800px] mx-auto text-center mb-6 sm:mb-10">
           <Eyebrow>Now Accepting Founding FBO Partners</Eyebrow>
-          <GradientHeading as="h1" className="text-[36px] sm:text-[48px] md:text-[64px] leading-[1.1] tracking-[-0.04em] mb-4">
+          <GradientHeading as="h1" className="text-[28px] sm:text-[48px] md:text-[64px] leading-[1.1] tracking-[-0.04em] mb-3 sm:mb-4">
             Your ramp. Under control.
           </GradientHeading>
-          <p className="text-[18px] text-[#99a0ae] leading-[1.5] tracking-[-0.01em] max-w-[800px] mx-auto mb-8">
+          <p className="text-[15px] sm:text-[18px] text-[#99a0ae] leading-[1.5] tracking-[-0.01em] max-w-[800px] mx-auto mb-6 sm:mb-8 px-2 sm:px-0">
             RampReady connects pilots with FBOs before wheels touch down — live ADS-B tracking, real fuel prices, and service requests confirmed before the aircraft is in radio range.
           </p>
-          <div className="flex items-center justify-center gap-3 flex-wrap">
-            <button onClick={() => scroll('founding')} className="text-[16px] font-medium bg-[#3b82f6] text-white h-[3.25rem] px-6 rounded-lg border-none cursor-pointer hover:bg-[#2563eb] transition-colors animate-pulse-glow">
+          <div className="flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
+            <button onClick={() => scroll('founding')} className="text-[14px] sm:text-[16px] font-medium bg-[#3b82f6] text-white h-11 sm:h-[3.25rem] px-4 sm:px-6 rounded-lg border-none cursor-pointer hover:bg-[#2563eb] transition-colors animate-pulse-glow">
               Become a Founding FBO →
             </button>
-            <button onClick={() => scroll('benefits')} className="text-[16px] font-medium bg-[#222530] text-white h-[3.25rem] px-6 rounded-lg border-none cursor-pointer hover:bg-[#2b303b] transition-colors">
+            <button onClick={() => scroll('benefits')} className="text-[14px] sm:text-[16px] font-medium bg-[#222530] text-white h-11 sm:h-[3.25rem] px-4 sm:px-6 rounded-lg border-none cursor-pointer hover:bg-[#2b303b] transition-colors">
               Learn more
             </button>
           </div>
         </div>
 
-        {/* Dashboard mockup — parallax */}
-        <div ref={parallax.ref} style={parallax.style} className="relative max-w-[1060px] mx-auto landing-parallax-slow">
+        {/* Dashboard mockup — parallax (hidden on small mobile) */}
+        <div ref={parallax.ref} style={parallax.style} className="relative max-w-[1060px] mx-auto landing-parallax-slow hidden sm:block">
           <div className="rounded-t-[1.5rem] overflow-hidden shadow-[0_0_0_1px_#ffffff14,0_32px_64px_-12px_rgba(0,0,0,0.6)]">
             <HeroDashboardMockup />
           </div>

@@ -126,39 +126,40 @@ export default function Dashboard() {
   }, [undoDeparted])
 
   return (
-    <div className="max-w-[1400px] mx-auto px-5 py-5">
+    <div className="max-w-[1400px] mx-auto px-3 sm:px-5 py-3 sm:py-5">
       {/* Header row — stats + add button + date */}
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-5">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[28px] font-bold text-text-primary font-mono">{arrivals.length}</span>
-            <span className="text-[11px] text-text-tertiary uppercase tracking-wider">Arrivals</span>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4 sm:mb-5">
+        <div className="grid grid-cols-4 gap-2 sm:flex sm:items-center sm:gap-5">
+          <div className="text-center sm:text-left sm:flex sm:items-center sm:gap-1.5">
+            <span className="block sm:inline text-[22px] sm:text-[28px] font-bold text-text-primary font-mono">{arrivals.length}</span>
+            <span className="block sm:inline text-[9px] sm:text-[11px] text-text-tertiary uppercase tracking-wider">Arrivals</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[28px] font-bold text-good font-mono">{confirmedArrivals.length}</span>
-            <span className="text-[11px] text-text-tertiary uppercase tracking-wider">Confirmed</span>
+          <div className="text-center sm:text-left sm:flex sm:items-center sm:gap-1.5">
+            <span className="block sm:inline text-[22px] sm:text-[28px] font-bold text-good font-mono">{confirmedArrivals.length}</span>
+            <span className="block sm:inline text-[9px] sm:text-[11px] text-text-tertiary uppercase tracking-wider">Confirmed</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[28px] font-bold text-caution font-mono">{pendingArrivals.length}</span>
-            <span className="text-[11px] text-text-tertiary uppercase tracking-wider">Pending</span>
+          <div className="text-center sm:text-left sm:flex sm:items-center sm:gap-1.5">
+            <span className="block sm:inline text-[22px] sm:text-[28px] font-bold text-caution font-mono">{pendingArrivals.length}</span>
+            <span className="block sm:inline text-[9px] sm:text-[11px] text-text-tertiary uppercase tracking-wider">Pending</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[28px] font-bold text-sky font-mono">{departures.length}</span>
-            <span className="text-[11px] text-text-tertiary uppercase tracking-wider">Departures</span>
+          <div className="text-center sm:text-left sm:flex sm:items-center sm:gap-1.5">
+            <span className="block sm:inline text-[22px] sm:text-[28px] font-bold text-sky font-mono">{departures.length}</span>
+            <span className="block sm:inline text-[9px] sm:text-[11px] text-text-tertiary uppercase tracking-wider">Departures</span>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => setShowAddModal(true)}
-            className="h-8 px-3.5 bg-sky hover:bg-sky/90 text-white text-[12px] font-semibold rounded-lg cursor-pointer border-none flex items-center gap-1.5"
+            className="h-8 px-2.5 sm:px-3.5 bg-sky hover:bg-sky/90 text-white text-[11px] sm:text-[12px] font-semibold rounded-lg cursor-pointer border-none flex items-center gap-1.5"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            Add Aircraft
+            <span className="hidden sm:inline">Add Aircraft</span>
+            <span className="sm:hidden">Add</span>
           </button>
-          <div className="text-[11px] text-text-tertiary font-mono">
+          <div className="text-[11px] text-text-tertiary font-mono hidden sm:block">
             {new Date().toLocaleDateString('en-US', {
               weekday: 'short',
               month: 'short',

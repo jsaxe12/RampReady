@@ -28,7 +28,7 @@ export default function ArrivalCard({ arrival }) {
           : 'ring-1 ring-border hover:ring-surface-500'
       }`}
     >
-      <div className="flex gap-3 px-4 py-3">
+      <div className="flex gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3">
         {/* Status indicator bar */}
         <div
           className={`w-1 self-stretch rounded-full shrink-0 ${
@@ -38,28 +38,28 @@ export default function ArrivalCard({ arrival }) {
 
         <div className="flex-1 min-w-0">
           {/* Top row: flight data */}
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-5 flex-wrap">
-              {/* Tail number */}
+          <div className="flex items-start justify-between gap-2 sm:gap-4">
+            <div className="flex items-center gap-2 sm:gap-5 flex-wrap">
+              {/* Tail + type */}
               <div>
-                <p className="font-mono text-[17px] font-bold text-text-primary tracking-wider leading-tight">
+                <p className="font-mono text-[15px] sm:text-[17px] font-bold text-text-primary tracking-wider leading-tight">
                   {arrival.tail_number}
                 </p>
                 <p className="text-[11px] text-text-tertiary mt-0.5">{arrival.aircraft_type}</p>
               </div>
 
-              {/* ETA */}
-              <div>
-                <p className="font-mono text-sm font-semibold text-caution leading-tight">
-                  {arrival.eta}
-                </p>
-                <p className="text-[11px] text-text-tertiary mt-0.5">ETA local</p>
-              </div>
-
-              {/* Pax */}
-              <div className="text-center">
-                <p className="text-sm font-semibold text-text-primary">{arrival.pax_count}</p>
-                <p className="text-[11px] text-text-tertiary">pax</p>
+              {/* ETA + Pax inline on mobile */}
+              <div className="flex items-center gap-2 sm:gap-5">
+                <div>
+                  <p className="font-mono text-sm font-semibold text-caution leading-tight">
+                    {arrival.eta}
+                  </p>
+                  <p className="text-[10px] sm:text-[11px] text-text-tertiary mt-0.5"><span className="hidden sm:inline">ETA local</span><span className="sm:hidden">ETA</span></p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-text-primary">{arrival.pax_count}</p>
+                  <p className="text-[10px] sm:text-[11px] text-text-tertiary">pax</p>
+                </div>
               </div>
 
               {/* Services */}
@@ -74,11 +74,11 @@ export default function ArrivalCard({ arrival }) {
 
             {/* Status badge */}
             {isConfirmed && (
-              <div className="flex items-center gap-1.5 bg-good-muted text-good px-2.5 py-1 rounded-md text-[12px] font-medium shrink-0">
+              <div className="flex items-center gap-1 sm:gap-1.5 bg-good-muted text-good px-1.5 sm:px-2.5 py-1 rounded-md text-[11px] sm:text-[12px] font-medium shrink-0">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
-                Confirmed
+                <span className="hidden sm:inline">Confirmed</span>
               </div>
             )}
           </div>
