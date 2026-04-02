@@ -683,7 +683,7 @@ function Pricing() {
 
   const plans = [
     { name: 'FBO Starter', price: annual ? '$79' : '$99', period: annual ? '/mo billed annually' : '/mo', popular: false, features: ['Arrivals queue and dashboard', 'Confirm / quote / decline', 'Fuel price posting', 'Line crew mobile view', 'Push notifications'] },
-    { name: 'FBO Pro', price: annual ? '$159' : '$199', period: annual ? '/mo billed annually' : '/mo', popular: true, features: ['Everything in Starter', 'Live ADS-B arrivals map', 'Fuel price management', 'Over-wing / into-plane settings', 'Analytics and reporting', 'Priority listing in pilot app'] },
+    { name: 'FBO Pro', price: annual ? '$159' : '$199', period: annual ? '/mo billed annually' : '/mo', popular: true, features: ['Everything in Starter', 'Live ADS-B arrivals map', 'Fuel price management', 'Over-wing / single-point', 'Analytics and reporting', 'Priority listing in pilot app'] },
     { name: 'Pilots', price: '$59', period: '/year', popular: false, features: ['Live fuel prices at every FBO', 'Ramp fee waiver calculator', 'One-tap service requests', 'Real-time FBO responses', 'Flight history log'] },
   ]
 

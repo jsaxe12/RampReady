@@ -276,6 +276,13 @@ export default function AddMovementModal({ onClose }) {
             />
           </div>
 
+          {/* Validation hint */}
+          {!canSubmit && (
+            <p className="text-[11px] text-caution text-center">
+              Fill in Tail Number, Aircraft Type, and {direction === 'inbound' ? 'ETA' : 'ETD'} to enable submit
+            </p>
+          )}
+
           {/* Actions */}
           <div className="flex items-center justify-end gap-3 pt-2 border-t border-border">
             <button
@@ -288,7 +295,11 @@ export default function AddMovementModal({ onClose }) {
             <button
               type="submit"
               disabled={!canSubmit}
-              className="h-9 px-5 bg-sky hover:bg-sky/90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-lg cursor-pointer border-none"
+              className={`h-10 px-6 text-[14px] font-semibold rounded-lg border-none transition-all ${
+                canSubmit
+                  ? 'bg-sky hover:bg-sky/90 text-white cursor-pointer shadow-[0_0_12px_rgba(74,144,217,0.4)]'
+                  : 'bg-surface-600 text-text-tertiary cursor-not-allowed opacity-50'
+              }`}
             >
               Add {direction === 'inbound' ? 'Arrival' : 'Departure'}
             </button>
