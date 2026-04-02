@@ -226,6 +226,62 @@ export function FBOProvider({ children }) {
     }
   }, [user])
 
+  // --- Messages ---
+  const [messages, setMessages] = useState([])
+
+  const fetchMessages = useCallback(async (movementId, movementType) => {
+    if (!user) return []
+    const col = movementType === 'arrival' ? 'arrival_id' : 'departure_id'
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq(col, movementId)
+      .order('created_at', { ascending: true })
+    if (!error && data) return data
+    return []
+  }, [user])
+
+  const sendMessage = useCallback(async ({ movementId, movementType, senderRole, senderName, body }) => {
+    if (!user) return
+    const payload = {
+      fbo_id: user.id,
+      sender_role: senderRole,
+      sender_name: senderName,
+      body,
+    }
+    if (movementType === 'arrival') payload.arrival_id = movementId
+    else payload.departure_id = movementId
+
+    const { data, error } = await supabase
+      .from('messages')
+      .insert(payload)
+      .select()
+      .single()
+    if (!error && data) return data
+    return null
+  }, [user])
+
+  // Real-time subscription for messages
+  useEffect(() => {
+    if (!user) return
+    const channel = supabase
+      .channel('messages-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `fbo_id=eq.${user.id}`,
+        },
+        (payload) => {
+          setMessages((prev) => [...prev, payload.new])
+        }
+      )
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [user])
+
   const pendingArrivals = arrivals.filter((a) => a.status === 'pending')
   const confirmedArrivals = arrivals.filter((a) => a.status === 'confirmed')
 
@@ -246,6 +302,9 @@ export function FBOProvider({ children }) {
         undoDeparted,
         fuelPrices,
         updateFuelPrice,
+        messages,
+        fetchMessages,
+        sendMessage,
       }}
     >
       {children}
