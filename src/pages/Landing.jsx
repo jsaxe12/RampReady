@@ -273,7 +273,7 @@ function Hero() {
   const parallax = useParallax(0.08)
 
   return (
-    <section id="hero" className="relative overflow-hidden pt-[11.875rem] pb-0" style={{ background: c.bg, borderBottomLeftRadius: '2.5rem', borderBottomRightRadius: '2.5rem' }}>
+    <section id="hero" className="relative overflow-hidden pt-[7.5rem] pb-0" style={{ background: c.bg, borderBottomLeftRadius: '2.5rem', borderBottomRightRadius: '2.5rem' }}>
       {/* Blue glow blobs — floating */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute bottom-[10%] left-0 right-0 min-h-[50%] opacity-100 animate-float" style={{ background: 'linear-gradient(90deg, #3b82f64d, #2563eb 50%, #3b82f64d)', filter: 'blur(100px)', mixBlendMode: 'plus-lighter' }} />
@@ -283,13 +283,13 @@ function Hero() {
 
       {/* Content */}
       <div className="relative z-10 max-w-[79rem] mx-auto px-8">
-        <div className="max-w-[700px] mx-auto text-center mb-16">
+        <div className="max-w-[800px] mx-auto text-center mb-10">
           <Eyebrow>Now Accepting Founding FBO Partners</Eyebrow>
-          <GradientHeading as="h1" className="text-[40px] md:text-[64px] leading-[1.2] tracking-[-0.04em] mb-6">
+          <GradientHeading as="h1" className="text-[36px] sm:text-[48px] md:text-[64px] leading-[1.1] tracking-[-0.04em] mb-4">
             Your ramp. Under control.
           </GradientHeading>
-          <p className="text-[18px] text-[#99a0ae] leading-[1.5] tracking-[-0.01em] max-w-[560px] mx-auto mb-10">
-            RampReady connects pilots with FBOs before wheels touch down. Live ADS-B tracking, real fuel prices, and service requests confirmed before the aircraft is in radio range.
+          <p className="text-[18px] text-[#99a0ae] leading-[1.5] tracking-[-0.01em] max-w-[800px] mx-auto mb-8">
+            RampReady connects pilots with FBOs before wheels touch down — live ADS-B tracking, real fuel prices, and service requests confirmed before the aircraft is in radio range.
           </p>
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <button onClick={() => scroll('founding')} className="text-[16px] font-medium bg-[#3b82f6] text-white h-[3.25rem] px-6 rounded-lg border-none cursor-pointer hover:bg-[#2563eb] transition-colors animate-pulse-glow">
