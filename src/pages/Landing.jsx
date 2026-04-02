@@ -221,8 +221,8 @@ function Nav({ onSignIn }) {
   ]
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 px-8 pt-4">
-      <div className={`max-w-[64rem] mx-auto transition-all duration-300 rounded-2xl px-4 py-2 grid grid-cols-[auto_1fr_auto] items-center gap-4 ${
+    <nav className="fixed top-0 left-0 right-0 z-50 px-3 sm:px-8 pt-2 sm:pt-4">
+      <div className={`max-w-[64rem] mx-auto transition-all duration-300 rounded-2xl px-2.5 sm:px-4 py-2 grid grid-cols-[auto_1fr_auto] items-center gap-2 sm:gap-4 ${
         scrolled ? 'bg-[#99a0ae1a] border border-[#99a0ae1a] backdrop-blur-[10px]' : 'bg-[#99a0ae0d] border border-transparent backdrop-blur-[10px]'
       }`}>
         <button onClick={() => scroll('hero')} className="text-[18px] font-semibold text-white tracking-tight bg-transparent border-none cursor-pointer">
@@ -242,7 +242,7 @@ function Nav({ onSignIn }) {
           <button onClick={() => scroll('founding')} className="text-[11px] sm:text-[14px] font-medium bg-[#f5f7fa] text-[#0e121b] h-8 sm:h-10 px-3 sm:px-4 rounded-lg border-none cursor-pointer hover:bg-white transition-colors whitespace-nowrap">
             Start Free
           </button>
-          <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden bg-transparent border-none cursor-pointer text-white p-1.5 sm:p-2">
+          <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden bg-transparent border-none cursor-pointer text-white p-0.5 sm:p-2">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               {menuOpen ? <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></> : <><line x1="3" y1="7" x2="21" y2="7" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="17" x2="21" y2="17" /></>}
             </svg>
@@ -273,7 +273,7 @@ function Hero() {
   const parallax = useParallax(0.08)
 
   return (
-    <section id="hero" className="relative overflow-hidden pt-[5.5rem] sm:pt-[7.5rem] pb-0" style={{ background: c.bg, borderBottomLeftRadius: '2.5rem', borderBottomRightRadius: '2.5rem' }}>
+    <section id="hero" className="relative overflow-hidden pt-[4rem] sm:pt-[7.5rem] pb-0" style={{ background: c.bg, borderBottomLeftRadius: '2.5rem', borderBottomRightRadius: '2.5rem' }}>
       {/* Blue glow blobs — floating */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute bottom-[10%] left-0 right-0 min-h-[50%] opacity-100 animate-float" style={{ background: 'linear-gradient(90deg, #3b82f64d, #2563eb 50%, #3b82f64d)', filter: 'blur(100px)', mixBlendMode: 'plus-lighter' }} />
