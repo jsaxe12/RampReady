@@ -45,7 +45,7 @@ export default function Login() {
                 type="email"
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); clearError() }}
-                placeholder="demo1@getrampready.com"
+                placeholder="you@yourfbo.com"
                 required
                 autoFocus
                 className="w-full h-10 bg-surface-900 border border-surface-500 focus:border-sky rounded-lg px-3 text-[13px] text-text-primary placeholder:text-text-tertiary focus:outline-none"
@@ -82,23 +82,6 @@ export default function Login() {
           </form>
         </div>
 
-        {/* Demo credentials hint */}
-        <div className="mt-4 bg-surface-800/50 rounded-lg ring-1 ring-border/50 p-4">
-          <p className="text-[11px] text-text-tertiary uppercase tracking-wider font-semibold mb-2">
-            Demo Accounts
-          </p>
-          <div className="space-y-1.5 text-[11px]">
-            <div className="flex items-center justify-between">
-              <span className="text-text-secondary">demo1@getrampready.com</span>
-              <span className="text-text-tertiary">Scottsdale Air Center</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-text-secondary">demo2@getrampready.com</span>
-              <span className="text-text-tertiary">Million Air Scottsdale</span>
-            </div>
-            <p className="text-text-tertiary mt-1">Password: <span className="font-mono text-text-secondary">RampReady2026!</span></p>
-          </div>
-        </div>
       </div>
     </div>
   )
