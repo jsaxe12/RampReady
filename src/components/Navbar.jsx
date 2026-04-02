@@ -8,7 +8,7 @@ export default function Navbar() {
 
   const handleLogout = async () => {
     await logout()
-    navigate('/login', { replace: true })
+    navigate('/', { replace: true })
   }
 
   const linkClass = ({ isActive }) =>

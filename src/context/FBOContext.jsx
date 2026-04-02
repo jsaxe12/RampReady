@@ -7,8 +7,10 @@ const FBOContext = createContext(null)
 export function FBOProvider({ children }) {
   const { user, fboProfile } = useAuth()
   const [arrivals, setArrivals] = useState([])
+  const [departures, setDepartures] = useState([])
   const [fuelPrices, setFuelPrices] = useState({ avgas: 0, jetA: 0, lastUpdated: null })
   const [loadingArrivals, setLoadingArrivals] = useState(true)
+  const [loadingDepartures, setLoadingDepartures] = useState(true)
 
   // Fetch arrivals from Supabase
   const fetchArrivals = useCallback(async () => {
@@ -24,10 +26,25 @@ export function FBOProvider({ children }) {
     setLoadingArrivals(false)
   }, [user])
 
-  // Load arrivals on mount / user change
+  // Fetch departures from Supabase
+  const fetchDepartures = useCallback(async () => {
+    if (!user) return
+    setLoadingDepartures(true)
+    const { data, error } = await supabase
+      .from('departures')
+      .select('*')
+      .eq('fbo_id', user.id)
+      .in('status', ['scheduled', 'fueled', 'taxiing'])
+      .order('etd', { ascending: true })
+    if (!error && data) setDepartures(data)
+    setLoadingDepartures(false)
+  }, [user])
+
+  // Load arrivals + departures on mount / user change
   useEffect(() => {
     fetchArrivals()
-  }, [fetchArrivals])
+    fetchDepartures()
+  }, [fetchArrivals, fetchDepartures])
 
   // Sync fuel prices from fboProfile
   useEffect(() => {
@@ -67,6 +84,42 @@ export function FBOProvider({ children }) {
             })
           } else if (payload.eventType === 'DELETE') {
             setArrivals((prev) => prev.filter((a) => a.id !== payload.old.id))
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user])
+
+  // Real-time subscription for departures
+  useEffect(() => {
+    if (!user) return
+
+    const channel = supabase
+      .channel('departures-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'departures',
+          filter: `fbo_id=eq.${user.id}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setDepartures((prev) => [...prev, payload.new].sort((a, b) => a.etd.localeCompare(b.etd)))
+          } else if (payload.eventType === 'UPDATE') {
+            setDepartures((prev) => {
+              if (payload.new.status === 'departed') {
+                return prev.filter((d) => d.id !== payload.new.id)
+              }
+              return prev.map((d) => (d.id === payload.new.id ? payload.new : d))
+            })
+          } else if (payload.eventType === 'DELETE') {
+            setDepartures((prev) => prev.filter((d) => d.id !== payload.old.id))
           }
         }
       )
@@ -121,6 +174,41 @@ export function FBOProvider({ children }) {
     }
   }, [user])
 
+  // Mark departure as fueled
+  const markFueled = useCallback(async (id) => {
+    const { error } = await supabase
+      .from('departures')
+      .update({ status: 'fueled' })
+      .eq('id', id)
+    if (!error) {
+      setDepartures((prev) => prev.map((d) => (d.id === id ? { ...d, status: 'fueled' } : d)))
+    }
+  }, [])
+
+  // Mark departure as departed
+  const markDeparted = useCallback(async (id) => {
+    const { error } = await supabase
+      .from('departures')
+      .update({ status: 'departed' })
+      .eq('id', id)
+    if (!error) {
+      setDepartures((prev) => prev.filter((d) => d.id !== id))
+    }
+  }, [])
+
+  // Undo departed — restore to fueled
+  const undoDeparted = useCallback(async (id) => {
+    const { data, error } = await supabase
+      .from('departures')
+      .update({ status: 'fueled' })
+      .eq('id', id)
+      .select()
+      .single()
+    if (!error && data) {
+      setDepartures((prev) => [...prev, data].sort((a, b) => a.etd.localeCompare(b.etd)))
+    }
+  }, [])
+
   // Update fuel price — write to Supabase
   const updateFuelPrice = useCallback(async (type, price) => {
     if (!user) return
@@ -151,6 +239,11 @@ export function FBOProvider({ children }) {
         addArrival,
         confirmArrival,
         declineArrival,
+        departures,
+        loadingDepartures,
+        markFueled,
+        markDeparted,
+        undoDeparted,
         fuelPrices,
         updateFuelPrice,
       }}
