@@ -10,15 +10,12 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
-    // Simulate network delay
-    setTimeout(() => {
-      const ok = login(email, password)
-      setLoading(false)
-      if (ok) navigate('/dashboard', { replace: true })
-    }, 400)
+    const ok = await login(email, password)
+    setLoading(false)
+    if (ok) navigate('/dashboard', { replace: true })
   }
 
   return (
@@ -29,10 +26,10 @@ export default function Login() {
           <div className="flex justify-center mb-4">
             <LogoMark size={64} />
           </div>
-          <h1 className="text-2xl font-bold text-text-primary tracking-tight">
+          <h1 className="text-2xl font-bold text-text-primary tracking-tight" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
             Ramp<span className="text-sky">Ready</span>
           </h1>
-          <p className="text-[13px] text-text-tertiary mt-1">FBO Operations Platform</p>
+          <p className="text-[13px] text-text-tertiary mt-1">FBO Portal</p>
         </div>
 
         {/* Login card */}
@@ -48,7 +45,7 @@ export default function Login() {
                 type="email"
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); clearError() }}
-                placeholder="ops@gillaviation.com"
+                placeholder="demo1@getrampready.com"
                 required
                 autoFocus
                 className="w-full h-10 bg-surface-900 border border-surface-500 focus:border-sky rounded-lg px-3 text-[13px] text-text-primary placeholder:text-text-tertiary focus:outline-none"
@@ -92,18 +89,14 @@ export default function Login() {
           </p>
           <div className="space-y-1.5 text-[11px]">
             <div className="flex items-center justify-between">
-              <span className="text-text-secondary">ops@gillaviation.com</span>
-              <span className="text-text-tertiary">Ops Manager</span>
+              <span className="text-text-secondary">demo1@getrampready.com</span>
+              <span className="text-text-tertiary">Scottsdale Air Center</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-text-secondary">csr@gillaviation.com</span>
-              <span className="text-text-tertiary">CSR</span>
+              <span className="text-text-secondary">demo2@getrampready.com</span>
+              <span className="text-text-tertiary">Million Air Scottsdale</span>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-text-secondary">line@gillaviation.com</span>
-              <span className="text-text-tertiary">Line Lead</span>
-            </div>
-            <p className="text-text-tertiary mt-1">Password: <span className="font-mono text-text-secondary">rampready</span></p>
+            <p className="text-text-tertiary mt-1">Password: <span className="font-mono text-text-secondary">RampReady2026!</span></p>
           </div>
         </div>
       </div>

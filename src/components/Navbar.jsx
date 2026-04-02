@@ -1,10 +1,15 @@
-import { NavLink } from 'react-router-dom'
-import { FBO_INFO } from '../data/seed'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { LogoMark } from './Logo'
 
 export default function Navbar() {
-  const { user, logout } = useAuth()
+  const { user, fboProfile, logout } = useAuth()
+  const navigate = useNavigate()
+
+  const handleLogout = async () => {
+    await logout()
+    navigate('/login', { replace: true })
+  }
 
   const linkClass = ({ isActive }) =>
     `relative px-3 py-1.5 text-[13px] font-medium rounded-md transition-all ${
@@ -25,16 +30,16 @@ export default function Navbar() {
         </div>
 
         {/* FBO + Airport identifier */}
-        <div className="hidden sm:flex items-center gap-2 bg-surface-900/60 rounded-md px-2.5 py-1">
-          <span className="text-[12px] font-semibold text-text-primary">{FBO_INFO.fboName}</span>
-          <span className="w-px h-3 bg-border" />
-          <span className="font-mono text-[13px] font-bold text-sky tracking-wide">
-            {FBO_INFO.icao}
-          </span>
-          <span className="w-px h-3 bg-border" />
-          <span className="text-[12px] text-text-tertiary">{FBO_INFO.airportName}</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-good ml-0.5" />
-        </div>
+        {fboProfile && (
+          <div className="hidden sm:flex items-center gap-2 bg-surface-900/60 rounded-md px-2.5 py-1">
+            <span className="text-[12px] font-semibold text-text-primary">{fboProfile.fbo_name}</span>
+            <span className="w-px h-3 bg-border" />
+            <span className="font-mono text-[13px] font-bold text-sky tracking-wide">
+              {fboProfile.airport_icao}
+            </span>
+            <span className="w-1.5 h-1.5 rounded-full bg-good ml-0.5" />
+          </div>
+        )}
       </div>
 
       {/* Right: Navigation + User */}
@@ -73,16 +78,18 @@ export default function Navbar() {
             <div className="hidden md:flex items-center gap-2">
               <div className="w-7 h-7 rounded-full bg-sky-muted flex items-center justify-center">
                 <span className="text-[11px] font-bold text-sky">
-                  {user.name.split(' ').map((n) => n[0]).join('')}
+                  {(user.email || '').substring(0, 2).toUpperCase()}
                 </span>
               </div>
               <div className="text-right">
-                <p className="text-[12px] text-text-primary font-medium leading-tight">{user.name}</p>
-                <p className="text-[10px] text-text-tertiary leading-tight">{user.role}</p>
+                <p className="text-[12px] text-text-primary font-medium leading-tight">
+                  {fboProfile?.fbo_name || user.email}
+                </p>
+                <p className="text-[10px] text-text-tertiary leading-tight">{user.email}</p>
               </div>
             </div>
             <button
-              onClick={logout}
+              onClick={handleLogout}
               className="h-7 px-2.5 bg-surface-700 hover:bg-danger-muted hover:text-danger text-text-tertiary text-[11px] font-medium rounded-md cursor-pointer border-none flex items-center gap-1.5"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

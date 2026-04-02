@@ -4,10 +4,19 @@ import { useFBO } from '../context/FBOContext'
 function PriceRow({ label, type, price, onSave }) {
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState(price.toFixed(2))
+  const [saving, setSaving] = useState(false)
 
-  const save = () => {
+  useEffect(() => {
+    setValue(price.toFixed(2))
+  }, [price])
+
+  const save = async () => {
     const num = parseFloat(value)
-    if (!isNaN(num) && num > 0) onSave(type, num)
+    if (!isNaN(num) && num > 0) {
+      setSaving(true)
+      await onSave(type, num)
+      setSaving(false)
+    }
     setEditing(false)
   }
 
@@ -32,7 +41,8 @@ function PriceRow({ label, type, price, onSave }) {
             onBlur={save}
             onKeyDown={onKey}
             autoFocus
-            className="w-16 bg-surface-900 border border-sky/40 rounded px-1.5 py-0.5 text-right font-mono text-sm text-text-primary focus:outline-none focus:border-sky"
+            disabled={saving}
+            className="w-16 bg-surface-900 border border-sky/40 rounded px-1.5 py-0.5 text-right font-mono text-sm text-text-primary focus:outline-none focus:border-sky disabled:opacity-50"
           />
         </div>
       ) : (
@@ -53,14 +63,23 @@ export default function FuelPricesPanel() {
   const [minutesAgo, setMinutesAgo] = useState(0)
 
   useEffect(() => {
-    const update = () =>
-      setMinutesAgo(Math.floor((Date.now() - fuelPrices.lastUpdated.getTime()) / 60000))
+    const update = () => {
+      if (fuelPrices.lastUpdated) {
+        setMinutesAgo(Math.floor((Date.now() - fuelPrices.lastUpdated.getTime()) / 60000))
+      }
+    }
     update()
     const id = setInterval(update, 30000)
     return () => clearInterval(id)
   }, [fuelPrices.lastUpdated])
 
-  const isStale = minutesAgo >= 1440
+  const isStale = minutesAgo >= 2880 // 48 hours
+
+  const timeLabel = minutesAgo < 60
+    ? `${minutesAgo}m ago`
+    : minutesAgo < 1440
+    ? `${Math.floor(minutesAgo / 60)}h ago`
+    : `${Math.floor(minutesAgo / 1440)}d ago`
 
   return (
     <div className="bg-surface-800 rounded-lg ring-1 ring-border p-4">
@@ -70,12 +89,12 @@ export default function FuelPricesPanel() {
         </h3>
         {isStale && (
           <span className="text-[10px] bg-danger-muted text-danger px-1.5 py-0.5 rounded font-medium">
-            STALE
+            STALE — update needed
           </span>
         )}
       </div>
       <p className="text-[11px] text-text-tertiary mb-2">
-        Updated {minutesAgo}m ago · click to edit
+        Updated {timeLabel} · click to edit
       </p>
 
       <div className="divide-y divide-border">

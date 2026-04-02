@@ -1,45 +1,65 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 
-// Demo accounts for Gill Aviation
-const DEMO_USERS = [
-  { email: 'ops@gillaviation.com', password: 'rampready', name: 'Sarah Mitchell', role: 'Ops Manager' },
-  { email: 'csr@gillaviation.com', password: 'rampready', name: 'Jake Torres', role: 'CSR' },
-  { email: 'line@gillaviation.com', password: 'rampready', name: 'Marcus Dean', role: 'Line Lead' },
-]
-
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('rampready_user')
-    return saved ? JSON.parse(saved) : null
-  })
+  const [user, setUser] = useState(null)
+  const [fboProfile, setFboProfile] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  const login = useCallback((email, password) => {
-    const found = DEMO_USERS.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-    )
-    if (found) {
-      const userData = { email: found.email, name: found.name, role: found.role }
-      setUser(userData)
-      setError(null)
-      localStorage.setItem('rampready_user', JSON.stringify(userData))
-      return true
-    }
-    setError('Invalid email or password')
-    return false
+  const fetchProfile = useCallback(async (userId) => {
+    const { data, error: err } = await supabase
+      .from('fbo_profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
+    if (!err && data) setFboProfile(data)
   }, [])
 
-  const logout = useCallback(() => {
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const u = session?.user ?? null
+      setUser(u)
+      if (u) fetchProfile(u.id)
+      setLoading(false)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const u = session?.user ?? null
+      setUser(u)
+      if (u) {
+        fetchProfile(u.id)
+      } else {
+        setFboProfile(null)
+      }
+      setLoading(false)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [fetchProfile])
+
+  const login = useCallback(async (email, password) => {
+    setError(null)
+    const { error: err } = await supabase.auth.signInWithPassword({ email, password })
+    if (err) {
+      setError(err.message)
+      return false
+    }
+    return true
+  }, [])
+
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut()
     setUser(null)
-    localStorage.removeItem('rampready_user')
+    setFboProfile(null)
   }, [])
 
   const clearError = useCallback(() => setError(null), [])
 
   return (
-    <AuthContext.Provider value={{ user, error, login, logout, clearError }}>
+    <AuthContext.Provider value={{ user, fboProfile, loading, error, login, logout, clearError }}>
       {children}
     </AuthContext.Provider>
   )

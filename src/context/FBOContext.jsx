@@ -1,73 +1,156 @@
-import { createContext, useContext, useState, useCallback } from 'react'
-import { INITIAL_MOVEMENTS, INITIAL_FUEL_PRICES } from '../data/seed'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from './AuthContext'
 
 const FBOContext = createContext(null)
 
 export function FBOProvider({ children }) {
-  const [movements, setMovements] = useState(INITIAL_MOVEMENTS)
-  const [fuelPrices, setFuelPrices] = useState(INITIAL_FUEL_PRICES)
+  const { user, fboProfile } = useAuth()
+  const [arrivals, setArrivals] = useState([])
+  const [fuelPrices, setFuelPrices] = useState({ avgas: 0, jetA: 0, lastUpdated: null })
+  const [loadingArrivals, setLoadingArrivals] = useState(true)
 
-  const inbound = movements.filter((m) => m.direction === 'inbound')
-  const outbound = movements.filter((m) => m.direction === 'outbound')
-  const pendingInbound = inbound.filter((a) => a.status === 'pending')
-  const confirmedInbound = inbound.filter((a) => a.status === 'confirmed')
+  // Fetch arrivals from Supabase
+  const fetchArrivals = useCallback(async () => {
+    if (!user) return
+    setLoadingArrivals(true)
+    const { data, error } = await supabase
+      .from('arrivals')
+      .select('*')
+      .eq('fbo_id', user.id)
+      .in('status', ['pending', 'confirmed'])
+      .order('eta', { ascending: true })
+    if (!error && data) setArrivals(data)
+    setLoadingArrivals(false)
+  }, [user])
 
-  const confirmArrival = useCallback((id) => {
-    setMovements((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: 'confirmed' } : a))
-    )
-  }, [])
+  // Load arrivals on mount / user change
+  useEffect(() => {
+    fetchArrivals()
+  }, [fetchArrivals])
 
-  const declineArrival = useCallback((id) => {
-    setMovements((prev) => prev.filter((a) => a.id !== id))
-  }, [])
+  // Sync fuel prices from fboProfile
+  useEffect(() => {
+    if (fboProfile) {
+      setFuelPrices({
+        avgas: parseFloat(fboProfile.avgas_price) || 0,
+        jetA: parseFloat(fboProfile.jeta_price) || 0,
+        lastUpdated: fboProfile.price_last_updated ? new Date(fboProfile.price_last_updated) : new Date(),
+      })
+    }
+  }, [fboProfile])
 
-  const markReady = useCallback((id) => {
-    setMovements((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: 'ready' } : a))
-    )
-  }, [])
+  // Real-time subscription for arrivals
+  useEffect(() => {
+    if (!user) return
 
-  const markDeparted = useCallback((id) => {
-    setMovements((prev) => prev.filter((a) => a.id !== id))
-  }, [])
-
-  const addMovement = useCallback((movement) => {
-    setMovements((prev) => [...prev, movement])
-  }, [])
-
-  const sendMessage = useCallback((id, message) => {
-    setMovements((prev) =>
-      prev.map((a) =>
-        a.id === id
-          ? { ...a, messages: [...(a.messages || []), { from: 'fbo', text: message, time: new Date() }] }
-          : a
+    const channel = supabase
+      .channel('arrivals-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'arrivals',
+          filter: `fbo_id=eq.${user.id}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setArrivals((prev) => [...prev, payload.new].sort((a, b) => a.eta.localeCompare(b.eta)))
+          } else if (payload.eventType === 'UPDATE') {
+            setArrivals((prev) => {
+              // If status changed to declined, remove it
+              if (payload.new.status === 'declined') {
+                return prev.filter((a) => a.id !== payload.new.id)
+              }
+              return prev.map((a) => (a.id === payload.new.id ? payload.new : a))
+            })
+          } else if (payload.eventType === 'DELETE') {
+            setArrivals((prev) => prev.filter((a) => a.id !== payload.old.id))
+          }
+        }
       )
-    )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user])
+
+  // Confirm arrival — update in Supabase
+  const confirmArrival = useCallback(async (id) => {
+    const { error } = await supabase
+      .from('arrivals')
+      .update({ status: 'confirmed' })
+      .eq('id', id)
+    if (!error) {
+      setArrivals((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'confirmed' } : a)))
+    }
   }, [])
 
-  const updateFuelPrice = useCallback((type, price) => {
-    setFuelPrices((prev) => ({
-      ...prev,
-      [type]: price,
-      lastUpdated: new Date(),
-    }))
+  // Decline arrival — update status in Supabase
+  const declineArrival = useCallback(async (id) => {
+    const { error } = await supabase
+      .from('arrivals')
+      .update({ status: 'declined' })
+      .eq('id', id)
+    if (!error) {
+      setArrivals((prev) => prev.filter((a) => a.id !== id))
+    }
   }, [])
+
+  // Add arrival — insert into Supabase
+  const addArrival = useCallback(async (arrival) => {
+    if (!user) return
+    const { data, error } = await supabase
+      .from('arrivals')
+      .insert({
+        fbo_id: user.id,
+        tail_number: arrival.tailNumber,
+        aircraft_type: arrival.aircraftType,
+        eta: arrival.eta,
+        pax_count: arrival.paxCount,
+        services: arrival.services,
+        pilot_notes: arrival.pilotNotes,
+        status: 'pending',
+      })
+      .select()
+      .single()
+    if (!error && data) {
+      setArrivals((prev) => [...prev, data].sort((a, b) => a.eta.localeCompare(b.eta)))
+    }
+  }, [user])
+
+  // Update fuel price — write to Supabase
+  const updateFuelPrice = useCallback(async (type, price) => {
+    if (!user) return
+    const field = type === 'avgas' ? 'avgas_price' : 'jeta_price'
+    const { error } = await supabase
+      .from('fbo_profiles')
+      .update({ [field]: price, price_last_updated: new Date().toISOString() })
+      .eq('id', user.id)
+    if (!error) {
+      setFuelPrices((prev) => ({
+        ...prev,
+        [type]: price,
+        lastUpdated: new Date(),
+      }))
+    }
+  }, [user])
+
+  const pendingArrivals = arrivals.filter((a) => a.status === 'pending')
+  const confirmedArrivals = arrivals.filter((a) => a.status === 'confirmed')
 
   return (
     <FBOContext.Provider
       value={{
-        movements,
-        inbound,
-        outbound,
-        pendingInbound,
-        confirmedInbound,
-        addMovement,
+        arrivals,
+        pendingArrivals,
+        confirmedArrivals,
+        loadingArrivals,
+        addArrival,
         confirmArrival,
         declineArrival,
-        markReady,
-        markDeparted,
-        sendMessage,
         fuelPrices,
         updateFuelPrice,
       }}

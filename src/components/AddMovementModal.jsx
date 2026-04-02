@@ -53,7 +53,7 @@ function TextField({ label, value, onChange, placeholder, type = 'text', ...prop
 }
 
 export default function AddMovementModal({ onClose }) {
-  const { addMovement } = useFBO()
+  const { addArrival } = useFBO()
   const [direction, setDirection] = useState('inbound')
   const [tailNumber, setTailNumber] = useState('')
   const [aircraftType, setAircraftType] = useState('')
@@ -67,6 +67,7 @@ export default function AddMovementModal({ onClose }) {
   const [pilotNotes, setPilotNotes] = useState('')
   const [pilotName, setPilotName] = useState('')
   const [pilotPhone, setPilotPhone] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   const toggleService = (s) => {
     setSelectedServices((prev) =>
@@ -74,35 +75,32 @@ export default function AddMovementModal({ onClose }) {
     )
   }
 
-  const canSubmit = tailNumber.trim() && aircraftType.trim() && timeStr
+  const canSubmit = tailNumber.trim() && aircraftType.trim() && timeStr && !submitting
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!canSubmit) return
+    setSubmitting(true)
 
-    const [h, m] = timeStr.split(':').map(Number)
-    const time = new Date()
-    time.setHours(h, m, 0, 0)
+    // Build services array including fuel type if selected
+    const services = [...selectedServices]
+    if (fuelType && !services.includes(fuelType)) services.push(fuelType)
 
-    const movement = {
-      id: crypto.randomUUID(),
-      direction,
+    const notes = [
+      pilotNotes.trim(),
+      pilotName ? `Pilot: ${pilotName.trim()}${pilotPhone ? ` (${pilotPhone.trim()})` : ''}` : '',
+    ].filter(Boolean).join(' | ')
+
+    await addArrival({
       tailNumber: tailNumber.toUpperCase().trim(),
       aircraftType: aircraftType.trim(),
-      rampFeeCategory: rampFeeCategory || null,
-      [direction === 'inbound' ? 'eta' : 'etd']: time,
+      eta: timeStr,
       paxCount: parseInt(paxCount) || 0,
-      fuelRequest: fuelType
-        ? { type: fuelType, gallons: parseInt(fuelGallons) || 0, method: fuelMethod || 'over-wing' }
-        : null,
-      services: selectedServices,
-      pilotNotes: pilotNotes.trim() || null,
-      pilotContact: pilotName ? { name: pilotName.trim(), phone: pilotPhone.trim() } : null,
-      status: 'pending',
-      source: 'manual',
-    }
+      services,
+      pilotNotes: notes || null,
+    })
 
-    addMovement(movement)
+    setSubmitting(false)
     onClose()
   }
 
