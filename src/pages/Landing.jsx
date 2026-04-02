@@ -31,7 +31,7 @@ function useFadeIn() {
     obs.observe(el)
     return () => obs.disconnect()
   }, [])
-  return { ref, vis, className: `transition-all duration-700 ease-out ${vis ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}` }
+  return { ref, vis, className: `transition-[opacity,transform] duration-500 ease-out will-change-[opacity,transform] ${vis ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}` }
 }
 
 function useStaggerIn() {
@@ -85,19 +85,30 @@ function useScaleIn() {
 function useParallax(speed = 0.15) {
   const ref = useRef(null)
   const [offset, setOffset] = useState(0)
+  const rafRef = useRef(null)
   useEffect(() => {
+    // Disable parallax on mobile for performance
+    if (window.innerWidth < 640) return
     const h = () => {
-      const el = ref.current
-      if (!el) return
-      const rect = el.getBoundingClientRect()
-      const center = rect.top + rect.height / 2 - window.innerHeight / 2
-      setOffset(center * speed)
+      if (rafRef.current) return
+      rafRef.current = requestAnimationFrame(() => {
+        const el = ref.current
+        if (el) {
+          const rect = el.getBoundingClientRect()
+          const center = rect.top + rect.height / 2 - window.innerHeight / 2
+          setOffset(center * speed)
+        }
+        rafRef.current = null
+      })
     }
     window.addEventListener('scroll', h, { passive: true })
     h()
-    return () => window.removeEventListener('scroll', h)
+    return () => {
+      window.removeEventListener('scroll', h)
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    }
   }, [speed])
-  return { ref, style: { transform: `translateY(${offset}px)` } }
+  return { ref, style: { transform: `translateY(${offset}px)`, willChange: 'transform' } }
 }
 
 function useCountUp(end, duration = 1200) {
@@ -222,8 +233,8 @@ function Nav({ onSignIn }) {
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 px-8 pt-4">
-      <div className={`max-w-[64rem] mx-auto transition-all duration-300 rounded-2xl px-4 py-2 grid grid-cols-[auto_1fr_auto] items-center gap-4 ${
-        scrolled ? 'bg-[#99a0ae1a] border border-[#99a0ae1a] backdrop-blur-[10px]' : 'bg-[#99a0ae0d] border border-transparent backdrop-blur-[10px]'
+      <div className={`max-w-[64rem] mx-auto transition-[background-color,border-color] duration-300 rounded-2xl px-4 py-2 grid grid-cols-[auto_1fr_auto] items-center gap-4 ${
+        scrolled ? 'bg-[#99a0ae1a] border border-[#99a0ae1a] backdrop-blur-[4px] sm:backdrop-blur-[10px]' : 'bg-[#99a0ae0d] border border-transparent backdrop-blur-[4px] sm:backdrop-blur-[10px]'
       }`}>
         <button onClick={() => scroll('hero')} className="text-[18px] font-semibold text-white tracking-tight bg-transparent border-none cursor-pointer">
           RampReady
@@ -275,10 +286,10 @@ function Hero() {
   return (
     <section id="hero" className="relative overflow-hidden pt-[5.5rem] sm:pt-[7.5rem] pb-0" style={{ background: c.bg, borderBottomLeftRadius: '2.5rem', borderBottomRightRadius: '2.5rem' }}>
       {/* Blue glow blobs — floating */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute bottom-[10%] left-0 right-0 min-h-[50%] opacity-100 animate-float" style={{ background: 'linear-gradient(90deg, #3b82f64d, #2563eb 50%, #3b82f64d)', filter: 'blur(100px)', mixBlendMode: 'plus-lighter' }} />
-        <div className="absolute inset-0 opacity-80 animate-float-delay" style={{ background: 'radial-gradient(circle farthest-corner at 0% 100%, #1d4ed8, transparent 34%)' }} />
-        <div className="absolute inset-0 opacity-80 animate-float" style={{ background: 'radial-gradient(circle farthest-corner at 100% 100%, #1d4ed8, transparent 34%)' }} />
+      <div className="absolute inset-0 pointer-events-none hero-glow-container">
+        <div className="absolute bottom-[10%] left-0 right-0 min-h-[50%] opacity-100 sm:animate-float" style={{ background: 'linear-gradient(90deg, #3b82f64d, #2563eb 50%, #3b82f64d)', filter: 'blur(40px)', willChange: 'transform' }} />
+        <div className="hidden sm:block absolute inset-0 opacity-80 animate-float-delay" style={{ background: 'radial-gradient(circle farthest-corner at 0% 100%, #1d4ed8, transparent 34%)' }} />
+        <div className="hidden sm:block absolute inset-0 opacity-80 animate-float" style={{ background: 'radial-gradient(circle farthest-corner at 100% 100%, #1d4ed8, transparent 34%)' }} />
       </div>
 
       {/* Content */}
