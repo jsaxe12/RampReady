@@ -183,5 +183,12 @@ function ConversationView() {
 
 export default function Messages() {
   const { requestId } = useParams()
+  const { setUnreadMessages } = usePilotPortal()
+
+  // Clear unread badge when entering Messages
+  useEffect(() => {
+    setUnreadMessages(0)
+  }, [setUnreadMessages])
+
   return requestId ? <ConversationView /> : <ConversationList />
 }

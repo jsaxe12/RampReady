@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../components/Toast'
 
 const PilotCtx = createContext(null)
 
@@ -12,12 +13,19 @@ const cache = {
 
 export function PilotPortalProvider({ children }) {
   const { user, pilotProfile, refreshProfile } = useAuth()
+  const { showToast } = useToast()
 
   const [aircraft, setAircraft] = useState(cache.get('aircraft') || [])
   const [requests, setRequests] = useState(cache.get('requests') || [])
   const [notifications, setNotifications] = useState([])
   const [conversations, setConversations] = useState([])
+  const [unreadMessages, setUnreadMessages] = useState(0)
   const [loading, setLoading] = useState({ aircraft: true, requests: true })
+  // Track if initial data load is complete so we don't toast for existing data
+  const initialLoadDone = useRef(false)
+  const knownRequestIds = useRef(new Set())
+  const knownNotifIds = useRef(new Set())
+  const lastRequestStatuses = useRef(new Map())
 
   // Fetch pilot's aircraft — no loading flash on refetch (SWR pattern)
   const fetchAircraft = useCallback(async () => {
@@ -31,22 +39,66 @@ export function PilotPortalProvider({ children }) {
   const fetchRequests = useCallback(async () => {
     if (!user) return
     const { data } = await supabase.from('service_requests').select('*').eq('pilot_id', user.id).order('created_at', { ascending: false })
-    if (data) { setRequests(data); cache.set('requests', data) }
+    if (data) {
+      // Toast for status changes found via polling
+      if (initialLoadDone.current) {
+        data.forEach(r => {
+          const prevStatus = lastRequestStatuses.current.get(r.id)
+          if (prevStatus && prevStatus !== r.status) {
+            if (r.status === 'confirmed') {
+              showToast({ title: 'Request Confirmed', body: `${r.airport_icao} — your request has been confirmed`, type: 'request_confirmed', key: `req-confirmed-${r.id}` })
+            } else if (r.status === 'declined') {
+              showToast({ title: 'Request Declined', body: `${r.airport_icao} — FBO was unable to fulfill your request`, type: 'request_declined', key: `req-declined-${r.id}` })
+            }
+          }
+        })
+      }
+      lastRequestStatuses.current = new Map(data.map(r => [r.id, r.status]))
+      setRequests(data); cache.set('requests', data)
+    }
     setLoading(p => p.requests ? { ...p, requests: false } : p)
-  }, [user])
+  }, [user, showToast])
 
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
     if (!user) return
     const { data } = await supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50)
-    if (data) setNotifications(data)
-  }, [user])
+    if (data) {
+      // Toast for genuinely new notifications found via polling
+      if (initialLoadDone.current) {
+        data.forEach(n => {
+          if (!knownNotifIds.current.has(n.id)) {
+            showToast({ title: n.title || 'New Notification', body: n.body, type: n.type || 'info', key: `notif-${n.id}` })
+          }
+        })
+      }
+      knownNotifIds.current = new Set(data.map(n => n.id))
+      setNotifications(data)
+    }
+  }, [user, showToast])
 
   useEffect(() => {
-    fetchAircraft()
-    fetchRequests()
-    fetchNotifications()
+    Promise.all([fetchAircraft(), fetchRequests(), fetchNotifications()]).then(() => {
+      // Small delay so realtime subscriptions that fire during initial load don't trigger toasts
+      setTimeout(() => { initialLoadDone.current = true }, 2000)
+    })
   }, [fetchAircraft, fetchRequests, fetchNotifications])
+
+  // Polling fallback — ensures data stays fresh even if Realtime WebSocket drops.
+  // Lightweight: only fetches if tab is visible, no loading flash (SWR pattern).
+  useEffect(() => {
+    if (!user) return
+    const POLL_MS = 10000 // 10 seconds
+    const poll = setInterval(() => {
+      if (!document.hidden) {
+        fetchRequests()
+        fetchNotifications()
+      }
+    }, POLL_MS)
+    const onVisible = () => { if (!document.hidden) { fetchRequests(); fetchNotifications() } }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { clearInterval(poll); document.removeEventListener('visibilitychange', onVisible) }
+  }, [user, fetchRequests, fetchNotifications])
 
   // Real-time: service_requests
   useEffect(() => {
@@ -54,12 +106,35 @@ export function PilotPortalProvider({ children }) {
     const ch = supabase.channel('pilot-requests-rt').on('postgres_changes', {
       event: '*', schema: 'public', table: 'service_requests', filter: `pilot_id=eq.${user.id}`,
     }, (payload) => {
-      if (payload.eventType === 'INSERT') setRequests(p => [payload.new, ...p])
-      else if (payload.eventType === 'UPDATE') setRequests(p => p.map(r => r.id === payload.new.id ? payload.new : r))
-      else if (payload.eventType === 'DELETE') setRequests(p => p.filter(r => r.id !== payload.old.id))
+      if (payload.eventType === 'INSERT') {
+        setRequests(p => [payload.new, ...p])
+      } else if (payload.eventType === 'UPDATE') {
+        setRequests(p => p.map(r => r.id === payload.new.id ? payload.new : r))
+        // Toast for status changes
+        if (initialLoadDone.current) {
+          const r = payload.new
+          if (r.status === 'confirmed') {
+            showToast({
+              title: 'Request Confirmed',
+              body: `${r.airport_icao} — your request has been confirmed`,
+              type: 'request_confirmed',
+              key: `req-confirmed-${r.id}`,
+            })
+          } else if (r.status === 'declined') {
+            showToast({
+              title: 'Request Declined',
+              body: `${r.airport_icao} — FBO was unable to fulfill your request`,
+              type: 'request_declined',
+              key: `req-declined-${r.id}`,
+            })
+          }
+        }
+      } else if (payload.eventType === 'DELETE') {
+        setRequests(p => p.filter(r => r.id !== payload.old.id))
+      }
     }).subscribe()
     return () => supabase.removeChannel(ch)
-  }, [user])
+  }, [user, showToast])
 
   // Real-time: notifications
   useEffect(() => {
@@ -68,9 +143,42 @@ export function PilotPortalProvider({ children }) {
       event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}`,
     }, (payload) => {
       setNotifications(p => [payload.new, ...p])
+      // Show toast for new notifications (skip during initial load)
+      if (initialLoadDone.current) {
+        const n = payload.new
+        showToast({
+          title: n.title || 'New Notification',
+          body: n.body,
+          type: n.type || 'info',
+          key: `notif-${n.id}`,
+        })
+      }
     }).subscribe()
     return () => supabase.removeChannel(ch)
-  }, [user])
+  }, [user, showToast])
+
+  // Real-time: global pilot messages — catches messages from FBOs on ANY request
+  // Uses pilot_id direct column match for reliable Realtime + RLS delivery
+  useEffect(() => {
+    if (!user) return
+    const ch = supabase.channel('pilot-messages-global').on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'messages', filter: `pilot_id=eq.${user.id}`,
+    }, (payload) => {
+      const msg = payload.new
+      // Only show toast for messages NOT sent by the pilot themselves
+      if (msg.sender_role === 'pilot') return
+      if (initialLoadDone.current) {
+        setUnreadMessages(c => c + 1)
+        showToast({
+          title: 'New Message',
+          body: msg.body?.slice(0, 80) || 'You have a new message from the FBO',
+          type: 'message',
+          key: `msg-${msg.id}`,
+        })
+      }
+    }).subscribe()
+    return () => supabase.removeChannel(ch)
+  }, [user, showToast])
 
   // Search FBOs — matches ICAO, FBO name, airport name, city
   const searchFBOs = useCallback(async (query) => {
@@ -138,6 +246,7 @@ export function PilotPortalProvider({ children }) {
     const { data, error } = await supabase.from('messages').insert({
       request_id: requestId,
       fbo_id: req?.fbo_id,
+      pilot_id: user.id,
       sender_role: 'pilot',
       sender_name: pilotProfile?.display_name || 'Pilot',
       body,
@@ -209,7 +318,7 @@ export function PilotPortalProvider({ children }) {
     <PilotCtx.Provider value={{
       aircraft, primaryAircraft, loading,
       requests, activeRequests, completedRequests,
-      notifications, unreadNotifications,
+      notifications, unreadNotifications, unreadMessages, setUnreadMessages,
       flightsThisYear, totalFuel, favoriteFBO,
       searchFBOs, searchFBOsByAirport, getFBO, browseAllFBOs,
       submitRequest, cancelRequest,

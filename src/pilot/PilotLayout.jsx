@@ -25,7 +25,7 @@ export default function PilotLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const navigate = useNavigate()
   const { user, pilotProfile, logout } = useAuth()
-  const { primaryAircraft, unreadNotifications } = usePilotPortal()
+  const { primaryAircraft, unreadNotifications, unreadMessages } = usePilotPortal()
 
   const pilotName = pilotProfile?.first_name
     ? `${pilotProfile.first_name} ${pilotProfile.last_name || ''}`.trim()
@@ -71,6 +71,11 @@ export default function PilotLayout() {
               {item.label === 'Notifications' && unreadNotifications > 0 && (
                 <span className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#EF4444', color: 'white' }}>
                   {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                </span>
+              )}
+              {item.label === 'Messages' && unreadMessages > 0 && (
+                <span className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#4EADFF', color: '#080D18' }}>
+                  {unreadMessages > 9 ? '9+' : unreadMessages}
                 </span>
               )}
             </NavLink>

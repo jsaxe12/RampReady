@@ -1,16 +1,23 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './AuthContext'
+import { useToast } from '../components/Toast'
 
 const FBOContext = createContext(null)
 
 export function FBOProvider({ children }) {
   const { user, fboProfile } = useAuth()
+  const { showToast } = useToast()
   const [arrivals, setArrivals] = useState([])
   const [departures, setDepartures] = useState([])
   const [fuelPrices, setFuelPrices] = useState({ avgas: 0, jetA: 0, lastUpdated: null })
   const [loadingArrivals, setLoadingArrivals] = useState(true)
   const [loadingDepartures, setLoadingDepartures] = useState(true)
+  const initialLoadDone = useRef(false)
+
+  // Track known IDs so polling can detect genuinely new items for toasts
+  const knownArrivalIds = useRef(new Set())
+  const knownNotifIds = useRef(new Set())
 
   // Fetch arrivals from Supabase
   // Only show loading spinner on initial fetch — refetches update silently (SWR pattern)
@@ -22,9 +29,25 @@ export function FBOProvider({ children }) {
       .eq('fbo_id', user.id)
       .in('status', ['pending', 'confirmed'])
       .order('eta', { ascending: true })
-    if (!error && data) setArrivals(data)
+    if (!error && data) {
+      // Toast for genuinely new arrivals found via polling
+      if (initialLoadDone.current) {
+        data.forEach(a => {
+          if (!knownArrivalIds.current.has(a.id)) {
+            showToast({
+              title: 'New Arrival',
+              body: `${a.tail_number} ${a.aircraft_type || ''} — ETA ${a.eta || 'TBD'}`.trim(),
+              type: 'arrival',
+              key: `arrival-${a.id}`,
+            })
+          }
+        })
+      }
+      knownArrivalIds.current = new Set(data.map(a => a.id))
+      setArrivals(data)
+    }
     setLoadingArrivals(false)
-  }, [user])
+  }, [user, showToast])
 
   // Fetch departures from Supabase
   const fetchDepartures = useCallback(async () => {
@@ -41,9 +64,28 @@ export function FBOProvider({ children }) {
 
   // Load arrivals + departures on mount / user change
   useEffect(() => {
-    fetchArrivals()
-    fetchDepartures()
+    Promise.all([fetchArrivals(), fetchDepartures()]).then(() => {
+      setTimeout(() => { initialLoadDone.current = true }, 2000)
+    })
   }, [fetchArrivals, fetchDepartures])
+
+  // Polling fallback — ensures data stays fresh even if Realtime WebSocket drops.
+  // Lightweight: only fetches if tab is visible, no loading flash (SWR pattern).
+  useEffect(() => {
+    if (!user) return
+    const POLL_MS = 10000 // 10 seconds
+    const poll = setInterval(() => {
+      if (!document.hidden) {
+        fetchArrivals()
+        fetchDepartures()
+        fetchNotifications()
+      }
+    }, POLL_MS)
+    // Immediate refetch when tab becomes visible after being hidden
+    const onVisible = () => { if (!document.hidden) { fetchArrivals(); fetchDepartures(); fetchNotifications() } }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { clearInterval(poll); document.removeEventListener('visibilitychange', onVisible) }
+  }, [user, fetchArrivals, fetchDepartures, fetchNotifications])
 
   // Sync fuel prices from fboProfile
   useEffect(() => {
@@ -73,6 +115,15 @@ export function FBOProvider({ children }) {
         (payload) => {
           if (payload.eventType === 'INSERT') {
             setArrivals((prev) => [...prev, payload.new].sort((a, b) => (a.eta || '').localeCompare(b.eta || '')))
+            if (initialLoadDone.current) {
+              const a = payload.new
+              showToast({
+                title: 'New Arrival',
+                body: `${a.tail_number} ${a.aircraft_type || ''} — ETA ${a.eta || 'TBD'}`.trim(),
+                type: 'arrival',
+                key: `arrival-${a.id}`,
+              })
+            }
           } else if (payload.eventType === 'UPDATE') {
             setArrivals((prev) => {
               // If status changed to declined or cancelled, remove it
@@ -300,11 +351,20 @@ export function FBOProvider({ children }) {
         },
         (payload) => {
           setMessages((prev) => [...prev, payload.new])
+          // Toast for messages from pilots (not from this FBO's own staff)
+          if (initialLoadDone.current && payload.new.sender_role === 'pilot') {
+            showToast({
+              title: 'New Pilot Message',
+              body: payload.new.body?.slice(0, 80) || 'You have a new message',
+              type: 'message',
+              key: `fbo-msg-${payload.new.id}`,
+            })
+          }
         }
       )
       .subscribe()
     return () => supabase.removeChannel(channel)
-  }, [user])
+  }, [user, showToast])
 
   // --- Notifications ---
   const [notifications, setNotifications] = useState([])
@@ -317,8 +377,24 @@ export function FBOProvider({ children }) {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(50)
-    if (data) setNotifications(data)
-  }, [user])
+    if (data) {
+      // Toast for genuinely new notifications found via polling
+      if (initialLoadDone.current) {
+        data.forEach(n => {
+          if (!knownNotifIds.current.has(n.id)) {
+            showToast({
+              title: n.title || 'New Notification',
+              body: n.body,
+              type: n.type || 'info',
+              key: `fbo-notif-${n.id}`,
+            })
+          }
+        })
+      }
+      knownNotifIds.current = new Set(data.map(n => n.id))
+      setNotifications(data)
+    }
+  }, [user, showToast])
 
   useEffect(() => {
     fetchNotifications()
@@ -339,11 +415,20 @@ export function FBOProvider({ children }) {
         },
         (payload) => {
           setNotifications((prev) => [payload.new, ...prev])
+          if (initialLoadDone.current) {
+            const n = payload.new
+            showToast({
+              title: n.title || 'New Notification',
+              body: n.body,
+              type: n.type || 'info',
+              key: `fbo-notif-${n.id}`,
+            })
+          }
         }
       )
       .subscribe()
     return () => supabase.removeChannel(channel)
-  }, [user])
+  }, [user, showToast])
 
   const markNotificationRead = useCallback(async (id) => {
     await supabase.from('notifications').update({ read: true }).eq('id', id)

@@ -23,4 +23,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: sessionStorage,
     storageKey: `sb-${projectRef}-auth-${tabId}`,
   },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+    heartbeatIntervalMs: 15000,
+    reconnectAfterMs: (tries) => Math.min(tries * 500, 5000),
+  },
 })
