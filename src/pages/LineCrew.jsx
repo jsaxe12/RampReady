@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useFBO } from '../context/FBOContext'
 import { useAuth } from '../context/AuthContext'
+import { useADSB } from '../hooks/useADSB'
 import ServiceChip from '../components/ServiceChip'
 import LiveTrackModal from '../components/LiveTrackModal'
 
@@ -143,6 +144,28 @@ function ChatPanel({ movementId, movementType, senderRole }) {
   )
 }
 
+function LineADSB({ tailNumber }) {
+  const { adsb } = useADSB(tailNumber)
+
+  // Hide entirely if no data
+  if (!adsb || (adsb.onGround && adsb.groundspeed === 0)) return null
+
+  return (
+    <div className="flex items-center gap-3 py-1.5">
+      <span className="w-2 h-2 rounded-full bg-good animate-pulse shrink-0" />
+      {adsb.distanceNm != null && (
+        <span className="font-mono text-[16px] font-bold text-sky">{adsb.distanceNm} nm out</span>
+      )}
+      {adsb.groundspeed != null && adsb.groundspeed > 0 && (
+        <span className="font-mono text-[13px] text-text-secondary">{adsb.groundspeed} kts</span>
+      )}
+      {adsb.etaCalculated && (
+        <span className="font-mono text-[13px] text-caution ml-auto">Arrives ~{adsb.etaCalculated}</span>
+      )}
+    </div>
+  )
+}
+
 function AircraftCard({ aircraft, type, senderRole }) {
   const [expanded, setExpanded] = useState(false)
   const [trackOpen, setTrackOpen] = useState(false)
@@ -200,6 +223,8 @@ function AircraftCard({ aircraft, type, senderRole }) {
               {aircraft.pilot_notes}
             </p>
           )}
+
+          {isArrival && <LineADSB tailNumber={aircraft.tail_number} />}
 
           {isArrival && (
             <button

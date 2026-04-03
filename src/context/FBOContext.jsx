@@ -166,6 +166,17 @@ export function FBOProvider({ children }) {
     }
   }, [arrivals])
 
+  // Cancel arrival — update status in Supabase
+  const cancelArrival = useCallback(async (id) => {
+    const { error } = await supabase
+      .from('arrivals')
+      .update({ status: 'cancelled' })
+      .eq('id', id)
+    if (!error) {
+      setArrivals((prev) => prev.filter((a) => a.id !== id))
+    }
+  }, [])
+
   // Add arrival — insert into Supabase
   const addArrival = useCallback(async (arrival) => {
     if (!user) return
@@ -309,6 +320,7 @@ export function FBOProvider({ children }) {
         addArrival,
         confirmArrival,
         declineArrival,
+        cancelArrival,
         departures,
         loadingDepartures,
         markFueled,

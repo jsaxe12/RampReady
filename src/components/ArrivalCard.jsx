@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useFBO } from '../context/FBOContext'
 import { useAuth } from '../context/AuthContext'
+import { useADSB } from '../hooks/useADSB'
 import ServiceChip from './ServiceChip'
 import LiveTrackModal from './LiveTrackModal'
 
@@ -121,11 +122,84 @@ function ChatInline({ arrivalId }) {
   )
 }
 
+function ADSBInline({ tailNumber }) {
+  const { adsb, loading } = useADSB(tailNumber)
+
+  if (loading) {
+    return (
+      <div className="mt-2 py-1.5 px-2.5 rounded-md bg-surface-700/50 flex items-center gap-2">
+        <div className="w-3 h-3 border border-sky border-t-transparent rounded-full animate-spin" />
+        <span className="text-[11px] text-text-tertiary">Fetching position...</span>
+      </div>
+    )
+  }
+
+  if (!adsb) {
+    return (
+      <div className="mt-2 py-1.5 px-2.5 rounded-md bg-surface-700/50">
+        <span className="text-[11px] text-text-tertiary">Position unavailable</span>
+      </div>
+    )
+  }
+
+  if (adsb.onGround && adsb.groundspeed === 0) {
+    return (
+      <div className="mt-2 py-1.5 px-2.5 rounded-md bg-surface-700/50 flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-caution" />
+        <span className="text-[11px] text-text-secondary font-medium">On ground</span>
+        {adsb.lastContact && (
+          <span className="text-[9px] text-text-tertiary ml-auto">
+            {adsb.lastContact.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+          </span>
+        )}
+      </div>
+    )
+  }
+
+  const formatAlt = (alt) => {
+    if (alt == null) return '—'
+    if (alt >= 18000) return `FL${Math.round(alt / 100)}`
+    return `${alt.toLocaleString()} ft`
+  }
+
+  return (
+    <div className="mt-2 py-2 px-2.5 rounded-md bg-surface-700/50 ring-1 ring-good/20">
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-good animate-pulse" />
+          <span className="text-[9px] font-bold uppercase text-good tracking-wider">Live</span>
+        </div>
+        {adsb.lastContact && (
+          <span className="text-[9px] text-text-tertiary">
+            {adsb.lastContact.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-3 text-[12px]">
+        {adsb.distanceNm != null && (
+          <span className="font-mono font-semibold text-sky">{adsb.distanceNm} nm</span>
+        )}
+        {adsb.altitude != null && (
+          <span className="font-mono text-text-primary">{formatAlt(adsb.altitude)}</span>
+        )}
+        {adsb.groundspeed != null && (
+          <span className="font-mono text-text-primary">{adsb.groundspeed} kts</span>
+        )}
+        {adsb.etaCalculated && (
+          <span className="font-mono text-caution ml-auto">ETA {adsb.etaCalculated}</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function ArrivalCard({ arrival }) {
-  const { confirmArrival, declineArrival } = useFBO()
+  const { confirmArrival, declineArrival, cancelArrival } = useFBO()
   const isConfirmed = arrival.status === 'confirmed'
   const [confirming, setConfirming] = useState(false)
   const [declining, setDeclining] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [trackOpen, setTrackOpen] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
@@ -154,6 +228,13 @@ export default function ArrivalCard({ arrival }) {
     await declineArrival(arrival.id, responseNotes)
     setDeclining(false)
     setShowNotes(false)
+  }
+
+  const handleCancel = async () => {
+    setCancelling(true)
+    await cancelArrival(arrival.id)
+    setCancelling(false)
+    setShowCancelConfirm(false)
   }
 
   return (
@@ -252,6 +333,9 @@ export default function ArrivalCard({ arrival }) {
             </p>
           )}
 
+          {/* Live ADS-B tracking */}
+          <ADSBInline tailNumber={arrival.tail_number} />
+
           {/* Response notes input for pilot requests */}
           {showNotes && (
             <div className="mt-2 p-2 rounded-md bg-surface-700">
@@ -296,7 +380,33 @@ export default function ArrivalCard({ arrival }) {
                 </button>
               </>
             )}
-            <div className={`flex items-center gap-1.5 ${isConfirmed ? '' : 'ml-auto'}`}>
+            {isConfirmed && !showCancelConfirm && (
+              <button
+                onClick={() => setShowCancelConfirm(true)}
+                className="h-7 px-3 bg-danger-muted hover:bg-danger/25 text-danger text-[12px] font-medium rounded-md cursor-pointer border-none"
+              >
+                Cancel
+              </button>
+            )}
+            {showCancelConfirm && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-text-tertiary">Cancel this arrival?</span>
+                <button
+                  onClick={handleCancel}
+                  disabled={cancelling}
+                  className="h-7 px-3 bg-danger hover:bg-danger/90 text-white text-[12px] font-semibold rounded-md cursor-pointer border-none disabled:opacity-50"
+                >
+                  {cancelling ? 'Cancelling...' : 'Yes, Cancel'}
+                </button>
+                <button
+                  onClick={() => setShowCancelConfirm(false)}
+                  className="h-7 px-2.5 bg-surface-700 hover:bg-surface-600 text-text-secondary text-[12px] rounded-md cursor-pointer border-none"
+                >
+                  No
+                </button>
+              </div>
+            )}
+            <div className={`flex items-center gap-1.5 ${isConfirmed && !showCancelConfirm ? '' : 'ml-auto'}`}>
               <button
                 onClick={() => setTrackOpen(true)}
                 className="h-7 px-2.5 text-[12px] font-medium rounded-md cursor-pointer border-none flex items-center gap-1 bg-sky/15 hover:bg-sky/25 text-sky"
