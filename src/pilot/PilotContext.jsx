@@ -4,10 +4,10 @@ import { useAuth } from '../context/AuthContext'
 
 const PilotCtx = createContext(null)
 
-// localStorage cache helpers
+// sessionStorage cache helpers (tab-scoped, won't leak between tabs)
 const cache = {
-  get: (key) => { try { return JSON.parse(localStorage.getItem(`rr_pilot_${key}`)) } catch { return null } },
-  set: (key, val) => { try { localStorage.setItem(`rr_pilot_${key}`, JSON.stringify(val)) } catch {} },
+  get: (key) => { try { return JSON.parse(sessionStorage.getItem(`rr_pilot_${key}`)) } catch { return null } },
+  set: (key, val) => { try { sessionStorage.setItem(`rr_pilot_${key}`, JSON.stringify(val)) } catch {} },
 }
 
 export function PilotPortalProvider({ children }) {

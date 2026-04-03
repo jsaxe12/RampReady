@@ -112,7 +112,8 @@ export function AuthProvider({ children }) {
   }, [])
 
   const logout = useCallback(async () => {
-    await supabase.auth.signOut()
+    // scope: 'local' only clears this tab's session, not other tabs
+    await supabase.auth.signOut({ scope: 'local' })
     setUser(null)
     setFboProfile(null)
     setPilotProfile(null)
