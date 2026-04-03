@@ -1,10 +1,10 @@
 // OpenSky Network ADS-B API service
 // Routes through Vercel serverless function (/api/opensky) to avoid CORS
-// The proxy handles both ICAO24 and callsign lookups with automatic fallback
+// The proxy handles N-number ICAO24 conversion + callsign search with caching
 
 // --- Rate limiting ---
-const queryCache = new Map() // tailNumber -> { data, timestamp }
-const MIN_INTERVAL = 30000   // 30 seconds per tail (OpenSky updates every ~10s)
+const queryCache = new Map() // key -> { data, timestamp }
+const MIN_INTERVAL = 15000   // 15 seconds between queries for same identifier
 let rateLimitedUntil = 0
 
 function isRateLimited() {
@@ -12,7 +12,7 @@ function isRateLimited() {
 }
 
 function handleRateLimit() {
-  const backoffMs = 5 * 60 * 1000
+  const backoffMs = 3 * 60 * 1000
   rateLimitedUntil = Date.now() + backoffMs
   console.warn(`[OpenSky] Rate limited — backing off until ${new Date(rateLimitedUntil).toLocaleTimeString()}`)
 }
@@ -39,28 +39,38 @@ export function calculateETA(distanceNm, groundspeedKts) {
   return eta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+// Detect if an identifier looks like an N-number vs a callsign
+function isNNumber(id) {
+  return /^N\d/.test(id)
+}
+
 // --- Main API function ---
-export async function getFlightData(tailNumber) {
-  if (!tailNumber) return null
+// identifier: tail number (N12345) OR callsign (EJA386)
+export async function getFlightData(identifier) {
+  if (!identifier) return null
+
+  const clean = identifier.replace(/[^A-Z0-9]/gi, '').toUpperCase()
+  if (!clean) return null
 
   // Check rate limit — return cached data
   if (isRateLimited()) {
-    console.log(`[OpenSky] Rate limited, returning cached data for ${tailNumber}`)
-    return queryCache.get(tailNumber)?.data || null
+    console.log(`[OpenSky] Rate limited, returning cached data for ${clean}`)
+    return queryCache.get(clean)?.data || null
   }
 
-  // Check per-tail cache
-  const cached = queryCache.get(tailNumber)
+  // Check per-identifier cache
+  const cached = queryCache.get(clean)
   if (cached && Date.now() - cached.timestamp < MIN_INTERVAL) {
     return cached.data
   }
 
   try {
-    // Send tail number to proxy — it handles ICAO24 conversion + callsign fallback
-    const cleanTail = tailNumber.replace(/[^A-Z0-9]/gi, '').toUpperCase()
-    console.log(`[OpenSky] Fetching ADS-B for ${cleanTail}`)
+    // Use ?tail= for N-numbers, ?callsign= for everything else
+    // The proxy handles both, but the param name helps it prioritize the right strategy
+    const param = isNNumber(clean) ? 'tail' : 'callsign'
+    console.log(`[OpenSky] Fetching ADS-B: ${param}=${clean}`)
 
-    const res = await fetch(`/api/opensky?tail=${encodeURIComponent(cleanTail)}`)
+    const res = await fetch(`/api/opensky?${param}=${encodeURIComponent(clean)}`)
 
     if (res.status === 429) {
       handleRateLimit()
@@ -68,7 +78,7 @@ export async function getFlightData(tailNumber) {
     }
 
     if (!res.ok) {
-      console.warn(`[OpenSky] Proxy error ${res.status} for ${tailNumber}`)
+      console.warn(`[OpenSky] Proxy error ${res.status} for ${clean}`)
       return cached?.data || null
     }
 
@@ -82,8 +92,8 @@ export async function getFlightData(tailNumber) {
     const states = json.states
 
     if (!states || states.length === 0) {
-      console.log(`[OpenSky] No ADS-B data for ${cleanTail} — aircraft may not be airborne`)
-      queryCache.set(tailNumber, { data: null, timestamp: Date.now() })
+      console.log(`[OpenSky] No ADS-B data for ${clean} — aircraft may not be airborne`)
+      queryCache.set(clean, { data: null, timestamp: Date.now() })
       return null
     }
 
@@ -110,7 +120,8 @@ export async function getFlightData(tailNumber) {
     const etaCalc = distanceNm != null && groundspeedKts ? calculateETA(distanceNm, groundspeedKts) : null
 
     const result = {
-      tailNumber,
+      identifier: clean,
+      tailNumber: isNNumber(clean) ? clean : (s[0] || '').toUpperCase(),
       icao24: s[0],
       callsign: (s[1] || '').trim(),
       latitude,
@@ -126,11 +137,11 @@ export async function getFlightData(tailNumber) {
       timestamp: new Date(),
     }
 
-    console.log(`[OpenSky] ✓ Got ADS-B for ${cleanTail}: icao24=${s[0]}, alt=${altitudeFt}ft, dist=${distanceNm}nm, gs=${groundspeedKts}kt`)
-    queryCache.set(tailNumber, { data: result, timestamp: Date.now() })
+    console.log(`[OpenSky] ✓ ${clean}: icao24=${s[0]}, cs=${result.callsign}, alt=${altitudeFt}ft, dist=${distanceNm}nm`)
+    queryCache.set(clean, { data: result, timestamp: Date.now() })
     return result
   } catch (err) {
-    console.error(`[OpenSky] Error for ${tailNumber}:`, err.message)
+    console.error(`[OpenSky] Error for ${clean}:`, err.message)
     return cached?.data || null
   }
 }

@@ -80,7 +80,7 @@ export default function LiveTrackModal({ arrival, onClose }) {
                 <p className="text-[11px] text-text-tertiary mt-1">
                   {arrival.tail_number} may not be airborne yet, or its transponder is not broadcasting.
                 </p>
-                <p className="text-[11px] text-text-tertiary mt-0.5">Checking again every 60 seconds.</p>
+                <p className="text-[11px] text-text-tertiary mt-0.5">Checking again every 30 seconds.</p>
                 {arrival.eta && (
                   <div className="mt-4 bg-surface-800 rounded-lg ring-1 ring-border p-3 inline-block">
                     <p className="text-[9px] text-text-tertiary uppercase tracking-wider mb-0.5">Scheduled ETA</p>
@@ -166,7 +166,7 @@ export default function LiveTrackModal({ arrival, onClose }) {
         {/* Footer */}
         <div className="px-4 py-2.5 border-t border-border bg-surface-800/50 flex items-center justify-between">
           <span className="text-[10px] text-text-tertiary">Powered by OpenSky Network</span>
-          <span className="text-[10px] text-text-tertiary">Refreshing every 60s</span>
+          <span className="text-[10px] text-text-tertiary">Refreshing every 30s</span>
         </div>
       </div>
     </div>

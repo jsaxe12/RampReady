@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { getFlightData } from '../lib/opensky'
 
-const POLL_INTERVAL = 60000 // 60 seconds
+const POLL_INTERVAL = 30000 // 30 seconds — matches OpenSky update rate
 
 /**
  * Hook to fetch and auto-refresh ADS-B data for a tail number.

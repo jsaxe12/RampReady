@@ -1,124 +1,166 @@
 const API_BASE = 'https://opensky-network.org/api'
 
+// ── Persistent caches (survive across warm Vercel invocations) ──
+// Once we find a callsign's ICAO24, all future requests use the fast direct query
+const callsignToIcao24 = new Map() // "EJA386" → "a47303"
+let statesCache = null
+let statesCacheTime = 0
+const STATES_CACHE_TTL = 30000 // 30 seconds
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
-  const { icao24, tail } = req.query
+  const { icao24, tail, callsign } = req.query
 
-  if (tail) {
-    const cleanTail = tail.replace(/[^A-Z0-9]/gi, '').toUpperCase()
-    const hex = nNumberToIcao24(cleanTail)
+  // Accept both ?tail= and ?callsign= (callsign takes priority for airline flight IDs)
+  const identifier = (callsign || tail || '').replace(/[^A-Z0-9]/gi, '').toUpperCase()
 
-    console.log(`[opensky] tail=${cleanTail} → icao24=${hex || 'N/A'}`)
+  if (identifier) {
+    console.log(`[opensky] Lookup: identifier=${identifier}`)
 
-    // Strategy 1: If we have an ICAO24 hex, query directly (fast, small response)
+    // ── Strategy 1: N-number → ICAO24 direct lookup (instant, <200ms) ──
+    const hex = nNumberToIcao24(identifier)
     if (hex) {
-      const data = await fetchOpenSky(`icao24=${hex}`)
-      if (data && data.states && data.states.length > 0) {
-        console.log(`[opensky] ✓ Found via icao24=${hex}`)
-        res.setHeader('Cache-Control', 's-maxage=10, stale-while-revalidate=50')
-        return res.status(200).json(data)
+      console.log(`[opensky] N-number ${identifier} → icao24=${hex}`)
+      const data = await fetchFiltered(hex)
+      if (data?.states?.length > 0) {
+        return ok(res, data)
       }
-      console.log(`[opensky] icao24=${hex} returned no states, trying callsign search...`)
+      // N-number not airborne, also try as callsign (some N-numbers are used as callsigns)
+      console.log(`[opensky] icao24=${hex} not airborne, trying callsign fallback...`)
     }
 
-    // Strategy 2: Search all states by callsign (needed for non-N-numbers like JRE809)
-    // OpenSky doesn't support callsign as a query filter, so we fetch all and filter
-    const callsignResult = await searchByCallsign(cleanTail)
-    if (callsignResult) {
-      console.log(`[opensky] ✓ Found via callsign search: ${cleanTail}`)
-      res.setHeader('Cache-Control', 's-maxage=10, stale-while-revalidate=50')
-      return res.status(200).json(callsignResult)
+    // ── Strategy 2: Callsign → cached ICAO24 direct lookup (instant, <200ms) ──
+    const cachedHex = callsignToIcao24.get(identifier)
+    if (cachedHex) {
+      console.log(`[opensky] Cached: ${identifier} → icao24=${cachedHex}`)
+      const data = await fetchFiltered(cachedHex)
+      if (data?.states?.length > 0) {
+        // Verify the callsign still matches (aircraft may have changed callsigns)
+        const cs = (data.states[0][1] || '').trim().toUpperCase()
+        if (cs === identifier) {
+          return ok(res, data)
+        }
+        // Stale mapping — clear it and fall through to full search
+        callsignToIcao24.delete(identifier)
+        console.log(`[opensky] Stale cache: ${cachedHex} now cs=${cs}, not ${identifier}`)
+      } else {
+        // Aircraft no longer airborne — clear stale cache
+        callsignToIcao24.delete(identifier)
+      }
     }
 
-    // Neither worked — aircraft likely not airborne
-    console.log(`[opensky] ✗ No results for tail=${cleanTail}`)
+    // ── Strategy 3: Full callsign search (slower, but caches result for next time) ──
+    const result = await searchByCallsign(identifier)
+    if (result) {
+      return ok(res, result)
+    }
+
+    // Nothing found — aircraft likely not airborne
+    console.log(`[opensky] ✗ No results for ${identifier}`)
     return res.status(200).json({ time: Math.floor(Date.now() / 1000), states: null })
   }
 
   // Legacy: direct icao24 parameter
   if (icao24) {
-    const data = await fetchOpenSky(`icao24=${icao24}`)
+    const data = await fetchFiltered(icao24)
     if (!data) return res.status(502).json({ error: 'OpenSky API error' })
-    res.setHeader('Cache-Control', 's-maxage=10, stale-while-revalidate=50')
-    return res.status(200).json(data)
+    return ok(res, data)
   }
 
-  return res.status(400).json({ error: 'Missing tail or icao24 parameter' })
+  return res.status(400).json({ error: 'Missing tail, callsign, or icao24 parameter' })
 }
 
-// --- Fetch with icao24 filter (small, fast response) ---
-async function fetchOpenSky(queryParam) {
-  const url = `${API_BASE}/states/all?${queryParam}`
+function ok(res, data) {
+  res.setHeader('Cache-Control', 's-maxage=10, stale-while-revalidate=50')
+  return res.status(200).json(data)
+}
+
+// ── Fast direct ICAO24 query (small response, <500ms) ──
+async function fetchFiltered(hex) {
+  const url = `${API_BASE}/states/all?icao24=${hex}`
   try {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 10000)
+    const tid = setTimeout(() => controller.abort(), 8000)
     const apiRes = await fetch(url, { signal: controller.signal })
-    clearTimeout(timeout)
-
+    clearTimeout(tid)
     if (apiRes.status === 429) return { error: 'rate_limited', states: null }
     if (!apiRes.ok) {
-      console.warn(`[opensky] API returned ${apiRes.status} for ${queryParam}`)
+      console.warn(`[opensky] API ${apiRes.status} for icao24=${hex}`)
       return null
     }
     return await apiRes.json()
   } catch (err) {
-    console.warn(`[opensky] ${err.name === 'AbortError' ? 'Timeout' : 'Error'} for ${queryParam}`)
+    console.warn(`[opensky] ${err.name === 'AbortError' ? 'Timeout' : 'Error'} icao24=${hex}`)
     return null
   }
 }
 
-// --- Search all states by callsign (larger download, needed for non-N-numbers) ---
-// OpenSky callsigns are 8 chars right-padded with spaces, e.g. "JRE809  "
-let statesCache = null
-let statesCacheTime = 0
-const STATES_CACHE_TTL = 15000 // 15 seconds
-
+// ── Callsign search — uses bounding box + caches ICAO24 for future fast lookups ──
 async function searchByCallsign(callsign) {
   const now = Date.now()
-
-  // Use cached full states if fresh enough
   let allStates = null
+
+  // Use cached states if fresh
   if (statesCache && (now - statesCacheTime) < STATES_CACHE_TTL) {
     allStates = statesCache
     console.log(`[opensky] Using cached states (${allStates.length} aircraft)`)
   } else {
-    try {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 15000)
-      const apiRes = await fetch(`${API_BASE}/states/all`, { signal: controller.signal })
-      clearTimeout(timeout)
-
-      if (!apiRes.ok) {
-        console.warn(`[opensky] Full states fetch returned ${apiRes.status}`)
-        return null
-      }
-      const json = await apiRes.json()
-      allStates = json.states || []
-      statesCache = allStates
-      statesCacheTime = now
-      console.log(`[opensky] Fetched ${allStates.length} aircraft states for callsign search`)
-    } catch (err) {
-      console.warn(`[opensky] Full states fetch failed: ${err.message}`)
-      return null
+    // Try US bounding box first — ~950KB / ~1.5s vs ~1.5MB / ~3s for global
+    allStates = await fetchAllStates(true)
+    if (!allStates) {
+      // Fallback: global (no bounding box)
+      console.log(`[opensky] Bounded fetch failed, trying global...`)
+      allStates = await fetchAllStates(false)
     }
+    if (!allStates) return null
+    statesCache = allStates
+    statesCacheTime = now
+    console.log(`[opensky] Fetched ${allStates.length} aircraft for callsign search`)
   }
 
-  // Search for matching callsign (field index 1, right-padded with spaces)
+  // Match callsign (OpenSky pads to 8 chars with spaces)
   const target = callsign.toUpperCase()
-  const matches = allStates.filter(s => {
-    const cs = (s[1] || '').trim().toUpperCase()
-    return cs === target
-  })
+  const matches = allStates.filter(s => (s[1] || '').trim().toUpperCase() === target)
 
   if (matches.length > 0) {
+    // Cache callsign → ICAO24 so ALL future requests are fast direct queries
+    const foundHex = matches[0][0]
+    callsignToIcao24.set(target, foundHex)
+    console.log(`[opensky] ✓ Found ${target} → icao24=${foundHex} (cached for fast future lookups)`)
     return { time: Math.floor(now / 1000), states: matches }
   }
   return null
 }
 
-// --- N-number to ICAO24 hex conversion ---
-// FAA N-numbers map algorithmically to the A00001-AFFFFF ICAO24 range
-// Format: N + d1(1-9) + [d2 + [d3 + [d4 + [d5 | L1] | L1[L2]] | L1[L2]] | L1[L2]]
+async function fetchAllStates(useBoundingBox) {
+  // Continental US + Mexico + Southern Canada covers nearly all domestic flights
+  let url = `${API_BASE}/states/all`
+  if (useBoundingBox) {
+    url += '?lamin=20&lamax=55&lomin=-130&lomax=-60'
+  }
+  try {
+    const controller = new AbortController()
+    const tid = setTimeout(() => controller.abort(), 20000) // 20s — plenty of room with maxDuration=30
+    const apiRes = await fetch(url, { signal: controller.signal })
+    clearTimeout(tid)
+    if (apiRes.status === 429) {
+      console.warn(`[opensky] Rate limited on states fetch`)
+      return null
+    }
+    if (!apiRes.ok) {
+      console.warn(`[opensky] States fetch returned ${apiRes.status}`)
+      return null
+    }
+    const json = await apiRes.json()
+    return json.states || []
+  } catch (err) {
+    console.warn(`[opensky] States fetch failed: ${err.message}`)
+    return null
+  }
+}
+
+// ── N-number to ICAO24 hex conversion ──
+// FAA N-numbers map algorithmically to the A00001–AFFFFF ICAO24 range
 // Letters exclude I and O (24 valid: A-H, J-N, P-Z)
 
 function letterIndex(ch) {
@@ -133,6 +175,8 @@ function nNumberToIcao24(tail) {
   if (!n.startsWith('N')) return null
   const suffix = n.substring(1)
   if (!suffix || suffix.length > 5) return null
+  // Must start with a digit 1-9
+  if (suffix[0] < '1' || suffix[0] > '9') return null
 
   const chars = []
   for (const ch of suffix) {
