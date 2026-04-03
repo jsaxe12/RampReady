@@ -183,6 +183,20 @@ export default function ArrivalCard({ arrival }) {
                 </div>
               </div>
 
+              {/* Fuel info from pilot request */}
+              {arrival.fuel_type && (
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-sky/15 text-sky">
+                    {arrival.fuel_type}
+                  </span>
+                  {arrival.fuel_quantity && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-sky/15 text-sky">
+                      {arrival.fuel_quantity}g
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Services */}
               {arrival.services && arrival.services.length > 0 && (
                 <div className="flex flex-wrap gap-1">
@@ -203,6 +217,18 @@ export default function ArrivalCard({ arrival }) {
               </div>
             )}
           </div>
+
+          {/* Pilot request indicator */}
+          {arrival.service_request_id && (
+            <div className="flex items-center gap-1.5 mt-2">
+              <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-good/15 text-good">Pilot Request</span>
+              {arrival.fuel_type && arrival.fuel_quantity && (
+                <span className="text-[11px] text-text-secondary">
+                  {arrival.fuel_type} · {arrival.fuel_quantity} gal
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Pilot notes */}
           {arrival.pilot_notes && (
