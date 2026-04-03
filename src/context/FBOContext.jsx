@@ -62,12 +62,41 @@ export function FBOProvider({ children }) {
     setLoadingDepartures(false)
   }, [user])
 
-  // Load arrivals + departures on mount / user change
+  // --- Notifications (must be defined before polling effect) ---
+  const [notifications, setNotifications] = useState([])
+
+  const fetchNotifications = useCallback(async () => {
+    if (!user) return
+    const { data } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(50)
+    if (data) {
+      if (initialLoadDone.current) {
+        data.forEach(n => {
+          if (!knownNotifIds.current.has(n.id)) {
+            showToast({
+              title: n.title || 'New Notification',
+              body: n.body,
+              type: n.type || 'info',
+              key: `fbo-notif-${n.id}`,
+            })
+          }
+        })
+      }
+      knownNotifIds.current = new Set(data.map(n => n.id))
+      setNotifications(data)
+    }
+  }, [user, showToast])
+
+  // Load arrivals + departures + notifications on mount / user change
   useEffect(() => {
-    Promise.all([fetchArrivals(), fetchDepartures()]).then(() => {
+    Promise.all([fetchArrivals(), fetchDepartures(), fetchNotifications()]).then(() => {
       setTimeout(() => { initialLoadDone.current = true }, 2000)
     })
-  }, [fetchArrivals, fetchDepartures])
+  }, [fetchArrivals, fetchDepartures, fetchNotifications])
 
   // Polling fallback — ensures data stays fresh even if Realtime WebSocket drops.
   // Lightweight: only fetches if tab is visible, no loading flash (SWR pattern).
@@ -366,39 +395,7 @@ export function FBOProvider({ children }) {
     return () => supabase.removeChannel(channel)
   }, [user, showToast])
 
-  // --- Notifications ---
-  const [notifications, setNotifications] = useState([])
-
-  const fetchNotifications = useCallback(async () => {
-    if (!user) return
-    const { data } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(50)
-    if (data) {
-      // Toast for genuinely new notifications found via polling
-      if (initialLoadDone.current) {
-        data.forEach(n => {
-          if (!knownNotifIds.current.has(n.id)) {
-            showToast({
-              title: n.title || 'New Notification',
-              body: n.body,
-              type: n.type || 'info',
-              key: `fbo-notif-${n.id}`,
-            })
-          }
-        })
-      }
-      knownNotifIds.current = new Set(data.map(n => n.id))
-      setNotifications(data)
-    }
-  }, [user, showToast])
-
-  useEffect(() => {
-    fetchNotifications()
-  }, [fetchNotifications])
+  // Notifications state + initial fetch are handled above (before polling effect)
 
   // Real-time: notifications for this FBO user
   useEffect(() => {
