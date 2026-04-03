@@ -7,13 +7,20 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env')
 }
 
+// Each tab gets a unique ID (persists on refresh via sessionStorage).
+// This isolates both the auth storage key AND the BroadcastChannel name
+// so tabs cannot interfere with each other's sessions.
+let tabId = sessionStorage.getItem('rr_tab_id')
+if (!tabId) {
+  tabId = crypto.randomUUID()
+  sessionStorage.setItem('rr_tab_id', tabId)
+}
+
+const projectRef = new URL(supabaseUrl).hostname.split('.')[0]
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    // Use sessionStorage so each browser tab has its own independent session.
-    // This allows logging in as FBO in one tab and Pilot in another without
-    // one overwriting the other. Refresh preserves the session within each tab.
     storage: sessionStorage,
-    // Disable cross-tab session sync — we want tabs to be independent
-    storageKey: `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`,
+    storageKey: `sb-${projectRef}-auth-${tabId}`,
   },
 })
