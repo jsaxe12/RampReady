@@ -158,41 +158,76 @@ function SignInModal({ open, onClose }) {
   const [loading, setLoading] = useState(false)
   const [loginRole, setLoginRole] = useState('fbo')
   const formRef = useRef(null)
+  const loadingRef = useRef(false)
 
   useEffect(() => {
     if (open) {
       clearError()
       setLoginRole('fbo')
       setLoading(false)
-      // Reset form fields when modal opens
+      loadingRef.current = false
       if (formRef.current) formRef.current.reset()
     }
   }, [open, clearError])
+
+  const doLogin = useCallback(async () => {
+    if (loadingRef.current) return
+    const form = formRef.current
+    if (!form) return
+
+    await new Promise((r) => requestAnimationFrame(r))
+
+    const email = form.email?.value?.trim()
+    const password = form.password?.value
+    if (!email || !password) return
+
+    loadingRef.current = true
+    setLoading(true)
+    clearError()
+    try {
+      const u = await login(email, password)
+      if (u) {
+        onClose()
+        const userRole = u.user_metadata?.role || 'fbo'
+        navigate(userRole === 'pilot' ? '/pilot' : '/dashboard', { replace: true })
+      }
+    } finally {
+      loadingRef.current = false
+      setLoading(false)
+    }
+  }, [login, clearError, onClose, navigate])
+
+  // Auto-submit when Touch ID / Face ID / password manager fills both fields
+  useEffect(() => {
+    if (!open) return
+    const form = formRef.current
+    if (!form) return
+    let timers = []
+    const check = () => {
+      if (loadingRef.current) return
+      const e = form.email?.value?.trim()
+      const p = form.password?.value
+      if (e && p) doLogin()
+    }
+    const onChange = () => { timers.push(setTimeout(check, 80)) }
+    form.addEventListener('change', onChange, true)
+    form.addEventListener('input', onChange, true)
+    timers.push(setTimeout(check, 300))
+    timers.push(setTimeout(check, 800))
+    return () => {
+      timers.forEach(clearTimeout)
+      form.removeEventListener('change', onChange, true)
+      form.removeEventListener('input', onChange, true)
+    }
+  }, [open, doLogin])
 
   if (!open) return null
 
   const isPilot = loginRole === 'pilot'
 
-  const handleLogin = async (e) => {
+  const handleLogin = (e) => {
     e.preventDefault()
-    if (loading) return
-
-    // Always read from DOM — uncontrolled inputs work with all autofill methods
-    const form = formRef.current
-    const email = form.email.value.trim()
-    const password = form.password.value
-
-    if (!email || !password) return
-
-    setLoading(true)
-    clearError()
-    const u = await login(email, password)
-    setLoading(false)
-    if (u) {
-      onClose()
-      const userRole = u.user_metadata?.role || 'fbo'
-      navigate(userRole === 'pilot' ? '/pilot' : '/dashboard', { replace: true })
-    }
+    doLogin()
   }
 
   return (

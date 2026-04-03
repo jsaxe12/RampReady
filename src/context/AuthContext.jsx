@@ -71,14 +71,19 @@ export function AuthProvider({ children }) {
     setError(null)
     loginInProgress.current = true
     try {
-      const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
+      // 15s timeout so login can never hang forever
+      const timeout = (ms) => new Promise((_, rej) => setTimeout(() => rej(new Error('Login timed out — check your connection and try again')), ms))
+      const { data, error: err } = await Promise.race([
+        supabase.auth.signInWithPassword({ email, password }),
+        timeout(15000),
+      ])
       if (err) {
         setError(err.message)
         return null
       }
       const u = data.user
       setUser(u)
-      await fetchProfile(u)
+      await Promise.race([fetchProfile(u), timeout(10000)])
       return u
     } catch (err) {
       setError(err.message || 'Login failed')

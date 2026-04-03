@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { LogoMark } from '../components/Logo'
@@ -8,24 +8,61 @@ export default function Login() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const formRef = useRef(null)
+  const loadingRef = useRef(false)
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (loading) return
-
-    // Always read from DOM — uncontrolled inputs work with all autofill methods
+  const doLogin = useCallback(async () => {
+    if (loadingRef.current) return
     const form = formRef.current
-    const email = form.email.value.trim()
-    const password = form.password.value
+    if (!form) return
 
+    // Wait a frame so autofill values are committed to the DOM
+    await new Promise((r) => requestAnimationFrame(r))
+
+    const email = form.email?.value?.trim()
+    const password = form.password?.value
     if (!email || !password) return
 
+    loadingRef.current = true
     setLoading(true)
     clearError()
-    const ok = await login(email, password)
-    setLoading(false)
-    if (ok) navigate('/dashboard', { replace: true })
+    try {
+      const ok = await login(email, password)
+      if (ok) navigate('/dashboard', { replace: true })
+    } finally {
+      loadingRef.current = false
+      setLoading(false)
+    }
+  }, [login, clearError, navigate])
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    doLogin()
   }
+
+  // Auto-submit when Touch ID / Face ID / password manager fills both fields
+  useEffect(() => {
+    const form = formRef.current
+    if (!form) return
+    let timers = []
+    const check = () => {
+      if (loadingRef.current) return
+      const e = form.email?.value?.trim()
+      const p = form.password?.value
+      if (e && p) doLogin()
+    }
+    // Browsers fire 'change' or 'input' after credential autofill
+    const onChange = () => { timers.push(setTimeout(check, 80)) }
+    form.addEventListener('change', onChange, true)
+    form.addEventListener('input', onChange, true)
+    // Also poll briefly after mount for autofills that fire no events
+    timers.push(setTimeout(check, 300))
+    timers.push(setTimeout(check, 800))
+    return () => {
+      timers.forEach(clearTimeout)
+      form.removeEventListener('change', onChange, true)
+      form.removeEventListener('input', onChange, true)
+    }
+  }, [doLogin])
 
   return (
     <div className="min-h-screen bg-surface-900 flex items-center justify-center px-4">
