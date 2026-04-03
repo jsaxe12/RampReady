@@ -6,13 +6,11 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      '/api/opensky': {
-        target: 'https://opensky-network.org',
+      // Proxy /api requests to Vercel dev server (run `vercel dev` on port 3000)
+      // In production, Vercel handles this natively via the api/ directory
+      '/api': {
+        target: 'http://localhost:3000',
         changeOrigin: true,
-        rewrite: (path) => {
-          const url = new URL(path, 'http://localhost')
-          return `/api/states/all${url.search}`
-        },
       },
     },
   },

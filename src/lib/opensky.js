@@ -1,9 +1,10 @@
 // OpenSky Network ADS-B API service
-// Routes through Vercel serverless function to avoid CORS
+// Routes through Vercel serverless function (/api/opensky) to avoid CORS
+// The proxy handles both ICAO24 and callsign lookups with automatic fallback
 
 // --- Rate limiting ---
 const queryCache = new Map() // tailNumber -> { data, timestamp }
-const MIN_INTERVAL = 60000 // 60 seconds per tail
+const MIN_INTERVAL = 30000   // 30 seconds per tail (OpenSky updates every ~10s)
 let rateLimitedUntil = 0
 
 function isRateLimited() {
@@ -11,54 +12,9 @@ function isRateLimited() {
 }
 
 function handleRateLimit() {
-  const backoffMs = 5 * 60 * 1000 // 5 minutes
+  const backoffMs = 5 * 60 * 1000
   rateLimitedUntil = Date.now() + backoffMs
   console.warn(`[OpenSky] Rate limited — backing off until ${new Date(rateLimitedUntil).toLocaleTimeString()}`)
-}
-
-// --- ICAO24 hex code lookup ---
-// US N-numbers: algorithmic conversion to ICAO24 hex
-function tailToIcao24(tail) {
-  if (!tail) return null
-  const t = tail.toUpperCase().replace(/[^A-Z0-9]/g, '')
-  if (t.startsWith('N')) return nNumberToIcao24(t)
-  return null
-}
-
-function nNumberToIcao24(nNumber) {
-  const base = 0xA00001
-  const n = nNumber.substring(1)
-  if (!n) return null
-
-  const digits = []
-  const letters = []
-  for (const ch of n) {
-    if (ch >= '0' && ch <= '9') digits.push(ch)
-    else if (ch >= 'A' && ch <= 'Z') letters.push(ch)
-  }
-
-  if (digits.length === 0) return null
-
-  const d1 = parseInt(digits[0]) - 1
-  if (d1 < 0) return null
-
-  let offset = d1 * 101711
-
-  if (digits.length >= 2) offset += 1 + parseInt(digits[1]) * 10111
-  if (digits.length >= 3) offset += 1 + parseInt(digits[2]) * 951
-  if (digits.length >= 4) offset += 1 + parseInt(digits[3]) * 35
-  if (digits.length >= 5) offset += 1 + parseInt(digits[4])
-
-  if (letters.length >= 1 && digits.length < 5) {
-    const l1 = letters[0].charCodeAt(0) - 65
-    if (digits.length <= 3) offset += 1 + l1 * (digits.length <= 2 ? 35 : 1)
-    else offset += 1 + l1
-  }
-  if (letters.length >= 2 && digits.length <= 3) {
-    offset += 1 + (letters[1].charCodeAt(0) - 65)
-  }
-
-  return (base + offset).toString(16).toLowerCase().padStart(6, '0')
 }
 
 // --- Haversine distance calculation ---
@@ -89,6 +45,7 @@ export async function getFlightData(tailNumber) {
 
   // Check rate limit — return cached data
   if (isRateLimited()) {
+    console.log(`[OpenSky] Rate limited, returning cached data for ${tailNumber}`)
     return queryCache.get(tailNumber)?.data || null
   }
 
@@ -98,14 +55,12 @@ export async function getFlightData(tailNumber) {
     return cached.data
   }
 
-  const icao24 = tailToIcao24(tailNumber)
-
   try {
-    const params = icao24
-      ? `icao24=${icao24}`
-      : `callsign=${tailNumber.replace(/[^A-Z0-9]/gi, '')}`
+    // Send tail number to proxy — it handles ICAO24 conversion + callsign fallback
+    const cleanTail = tailNumber.replace(/[^A-Z0-9]/gi, '').toUpperCase()
+    console.log(`[OpenSky] Fetching ADS-B for ${cleanTail}`)
 
-    const res = await fetch(`/api/opensky?${params}`)
+    const res = await fetch(`/api/opensky?tail=${encodeURIComponent(cleanTail)}`)
 
     if (res.status === 429) {
       handleRateLimit()
@@ -118,9 +73,16 @@ export async function getFlightData(tailNumber) {
     }
 
     const json = await res.json()
+
+    if (json.error === 'rate_limited') {
+      handleRateLimit()
+      return cached?.data || null
+    }
+
     const states = json.states
 
     if (!states || states.length === 0) {
+      console.log(`[OpenSky] No ADS-B data for ${cleanTail} — aircraft may not be airborne`)
       queryCache.set(tailNumber, { data: null, timestamp: Date.now() })
       return null
     }
@@ -150,6 +112,7 @@ export async function getFlightData(tailNumber) {
     const result = {
       tailNumber,
       icao24: s[0],
+      callsign: (s[1] || '').trim(),
       latitude,
       longitude,
       altitude: altitudeFt,
@@ -163,6 +126,7 @@ export async function getFlightData(tailNumber) {
       timestamp: new Date(),
     }
 
+    console.log(`[OpenSky] ✓ Got ADS-B for ${cleanTail}: icao24=${s[0]}, alt=${altitudeFt}ft, dist=${distanceNm}nm, gs=${groundspeedKts}kt`)
     queryCache.set(tailNumber, { data: result, timestamp: Date.now() })
     return result
   } catch (err) {
