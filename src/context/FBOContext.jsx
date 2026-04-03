@@ -290,7 +290,7 @@ export function FBOProvider({ children }) {
   useEffect(() => {
     if (!user) return
     const channel = supabase
-      .channel('messages-realtime')
+      .channel('fbo-messages-rt')
       .on(
         'postgres_changes',
         {
@@ -306,6 +306,58 @@ export function FBOProvider({ children }) {
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [user])
+
+  // --- Notifications ---
+  const [notifications, setNotifications] = useState([])
+
+  const fetchNotifications = useCallback(async () => {
+    if (!user) return
+    const { data } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(50)
+    if (data) setNotifications(data)
+  }, [user])
+
+  useEffect(() => {
+    fetchNotifications()
+  }, [fetchNotifications])
+
+  // Real-time: notifications for this FBO user
+  useEffect(() => {
+    if (!user) return
+    const channel = supabase
+      .channel('fbo-notifs-rt')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          setNotifications((prev) => [payload.new, ...prev])
+        }
+      )
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [user])
+
+  const markNotificationRead = useCallback(async (id) => {
+    await supabase.from('notifications').update({ read: true }).eq('id', id)
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
+  }, [])
+
+  const markAllNotificationsRead = useCallback(async () => {
+    if (!user) return
+    await supabase.from('notifications').update({ read: true }).eq('user_id', user.id).eq('read', false)
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+  }, [user])
+
+  const unreadNotifications = notifications.filter((n) => !n.read).length
 
   const pendingArrivals = arrivals.filter((a) => a.status === 'pending')
   const confirmedArrivals = arrivals.filter((a) => a.status === 'confirmed')
@@ -331,6 +383,10 @@ export function FBOProvider({ children }) {
         messages,
         fetchMessages,
         sendMessage,
+        notifications,
+        unreadNotifications,
+        markNotificationRead,
+        markAllNotificationsRead,
       }}
     >
       {children}
@@ -342,4 +398,9 @@ export function useFBO() {
   const ctx = useContext(FBOContext)
   if (!ctx) throw new Error('useFBO must be used within FBOProvider')
   return ctx
+}
+
+// Safe version that returns null outside FBOProvider (for Navbar which renders on all routes)
+export function useFBOSafe() {
+  return useContext(FBOContext)
 }
