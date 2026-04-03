@@ -13,9 +13,9 @@ export function FBOProvider({ children }) {
   const [loadingDepartures, setLoadingDepartures] = useState(true)
 
   // Fetch arrivals from Supabase
+  // Only show loading spinner on initial fetch — refetches update silently (SWR pattern)
   const fetchArrivals = useCallback(async () => {
     if (!user) return
-    setLoadingArrivals(true)
     const { data, error } = await supabase
       .from('arrivals')
       .select('*')
@@ -29,7 +29,6 @@ export function FBOProvider({ children }) {
   // Fetch departures from Supabase
   const fetchDepartures = useCallback(async () => {
     if (!user) return
-    setLoadingDepartures(true)
     const { data, error } = await supabase
       .from('departures')
       .select('*')

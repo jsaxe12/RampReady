@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { FBOProvider } from './context/FBOContext'
 import { PilotPortalProvider } from './pilot/PilotContext'
@@ -37,6 +37,19 @@ function ProtectedRoute({ children, allowedRole }) {
   return children
 }
 
+// Shared FBO layout — single FBOProvider wraps all FBO routes so data persists
+// across Dashboard ↔ LineCrew navigation without refetching
+function FBOLayout() {
+  return (
+    <FBOProvider>
+      <div className="min-h-screen bg-surface-900">
+        <Navbar />
+        <Outlet />
+      </div>
+    </FBOProvider>
+  )
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -44,32 +57,17 @@ function AppRoutes() {
 
       <Route path="/login" element={<Navigate to="/" replace />} />
 
+      {/* FBO routes — single provider for all */}
       <Route
-        path="/dashboard"
         element={
           <ProtectedRoute allowedRole="fbo">
-            <FBOProvider>
-              <div className="min-h-screen bg-surface-900">
-                <Navbar />
-                <Dashboard />
-              </div>
-            </FBOProvider>
+            <FBOLayout />
           </ProtectedRoute>
         }
-      />
-      <Route
-        path="/linecrew"
-        element={
-          <ProtectedRoute allowedRole="fbo">
-            <FBOProvider>
-              <div className="min-h-screen bg-surface-900">
-                <Navbar />
-                <LineCrew />
-              </div>
-            </FBOProvider>
-          </ProtectedRoute>
-        }
-      />
+      >
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/linecrew" element={<LineCrew />} />
+      </Route>
 
       {/* Pilot portal routes */}
       <Route

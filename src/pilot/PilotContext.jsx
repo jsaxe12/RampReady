@@ -19,20 +19,20 @@ export function PilotPortalProvider({ children }) {
   const [conversations, setConversations] = useState([])
   const [loading, setLoading] = useState({ aircraft: true, requests: true })
 
-  // Fetch pilot's aircraft
+  // Fetch pilot's aircraft — no loading flash on refetch (SWR pattern)
   const fetchAircraft = useCallback(async () => {
     if (!user) return
     const { data } = await supabase.from('pilot_aircraft').select('*').eq('pilot_id', user.id).order('is_primary', { ascending: false })
     if (data) { setAircraft(data); cache.set('aircraft', data) }
-    setLoading(p => ({ ...p, aircraft: false }))
+    setLoading(p => p.aircraft ? { ...p, aircraft: false } : p)
   }, [user])
 
-  // Fetch service requests
+  // Fetch service requests — no loading flash on refetch
   const fetchRequests = useCallback(async () => {
     if (!user) return
     const { data } = await supabase.from('service_requests').select('*').eq('pilot_id', user.id).order('created_at', { ascending: false })
     if (data) { setRequests(data); cache.set('requests', data) }
-    setLoading(p => ({ ...p, requests: false }))
+    setLoading(p => p.requests ? { ...p, requests: false } : p)
   }, [user])
 
   // Fetch notifications

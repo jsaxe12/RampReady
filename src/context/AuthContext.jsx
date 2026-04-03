@@ -53,7 +53,9 @@ export function AuthProvider({ children }) {
 
       const u = session?.user ?? null
       if (u) {
-        setUser(u)
+        // Only update user state if the user ID actually changed — avoids
+        // cascading re-renders in FBOContext/PilotContext on token refresh
+        setUser((prev) => (prev?.id === u.id ? prev : u))
         await fetchProfile(u)
       } else {
         setUser(null)
