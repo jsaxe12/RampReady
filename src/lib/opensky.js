@@ -1,7 +1,5 @@
 // OpenSky Network ADS-B API service
-// Routes through Supabase Edge Function to avoid CORS and protect credentials
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+// Routes through Vercel serverless function to avoid CORS
 
 // --- Rate limiting ---
 const queryCache = new Map() // tailNumber -> { data, timestamp }
@@ -87,7 +85,7 @@ export function calculateETA(distanceNm, groundspeedKts) {
 
 // --- Main API function ---
 export async function getFlightData(tailNumber) {
-  if (!tailNumber || !SUPABASE_URL) return null
+  if (!tailNumber) return null
 
   // Check rate limit — return cached data
   if (isRateLimited()) {
@@ -107,11 +105,7 @@ export async function getFlightData(tailNumber) {
       ? `icao24=${icao24}`
       : `callsign=${tailNumber.replace(/[^A-Z0-9]/gi, '')}`
 
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/opensky-proxy?${params}`, {
-      headers: {
-        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      },
-    })
+    const res = await fetch(`/api/opensky?${params}`)
 
     if (res.status === 429) {
       handleRateLimit()
