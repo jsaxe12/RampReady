@@ -12,8 +12,18 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    // Read values from DOM to handle browser/macOS autofill which bypasses onChange
+    const form = e.target
+    const emailVal = form.elements.email?.value || email
+    const passVal = form.elements.password?.value || password
+    // Sync React state so the UI stays consistent
+    setEmail(emailVal)
+    setPassword(passVal)
+
+    if (!emailVal || !passVal) return
+
     setLoading(true)
-    const ok = await login(email, password)
+    const ok = await login(emailVal, passVal)
     setLoading(false)
     if (ok) navigate('/dashboard', { replace: true })
   }
@@ -43,6 +53,8 @@ export default function Login() {
               </label>
               <input
                 type="email"
+                name="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); clearError() }}
                 placeholder="you@yourfbo.com"
@@ -58,6 +70,8 @@ export default function Login() {
               </label>
               <input
                 type="password"
+                name="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); clearError() }}
                 placeholder="••••••••"

@@ -170,8 +170,17 @@ function SignInModal({ open, onClose }) {
 
   const handleLogin = async (e) => {
     e.preventDefault()
+    // Read values from DOM to handle browser/macOS autofill which bypasses onChange
+    const form = e.target
+    const emailVal = form.elements.email?.value || email
+    const passVal = form.elements.password?.value || password
+    setEmail(emailVal)
+    setPassword(passVal)
+
+    if (!emailVal || !passVal) return
+
     setLoading(true)
-    const u = await login(email, password)
+    const u = await login(emailVal, passVal)
     setLoading(false)
     if (u) {
       onClose()
@@ -222,13 +231,13 @@ function SignInModal({ open, onClose }) {
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="block text-[11px] text-[#717784] uppercase tracking-wider mb-1.5">Email</label>
-            <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); clearError() }}
+            <input type="email" name="email" autoComplete="email" value={email} onChange={(e) => { setEmail(e.target.value); clearError() }}
               placeholder={isPilot ? 'pilot@email.com' : 'you@yourfbo.com'} required autoFocus
               className="w-full h-10 bg-[#0e121b] border border-[#2b303b] focus:border-[#3b82f6] rounded-lg px-3 text-[13px] text-white placeholder:text-[#525866] focus:outline-none" />
           </div>
           <div>
             <label className="block text-[11px] text-[#717784] uppercase tracking-wider mb-1.5">Password</label>
-            <input type="password" value={password} onChange={(e) => { setPassword(e.target.value); clearError() }} placeholder="••••••••" required
+            <input type="password" name="password" autoComplete="current-password" value={password} onChange={(e) => { setPassword(e.target.value); clearError() }} placeholder="••••••••" required
               className="w-full h-10 bg-[#0e121b] border border-[#2b303b] focus:border-[#3b82f6] rounded-lg px-3 text-[13px] text-white placeholder:text-[#525866] focus:outline-none" />
           </div>
           {error && (
