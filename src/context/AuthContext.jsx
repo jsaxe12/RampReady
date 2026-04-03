@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
@@ -10,25 +10,32 @@ export function AuthProvider({ children }) {
   const [pilotProfile, setPilotProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  // Prevent onAuthStateChange from re-fetching during manual login
+  const loginInProgress = useRef(false)
 
   const fetchProfile = useCallback(async (u) => {
     const userRole = u.user_metadata?.role || 'fbo'
     setRole(userRole)
 
-    if (userRole === 'pilot') {
-      const { data, error: err } = await supabase
-        .from('pilot_profiles')
-        .select('*')
-        .eq('id', u.id)
-        .single()
-      if (!err && data) setPilotProfile(data)
-    } else {
-      const { data, error: err } = await supabase
-        .from('fbo_profiles')
-        .select('*')
-        .eq('id', u.id)
-        .single()
-      if (!err && data) setFboProfile(data)
+    try {
+      if (userRole === 'pilot') {
+        const { data } = await supabase
+          .from('pilot_profiles')
+          .select('*')
+          .eq('id', u.id)
+          .single()
+        if (data) setPilotProfile(data)
+      } else {
+        const { data } = await supabase
+          .from('fbo_profiles')
+          .select('*')
+          .eq('id', u.id)
+          .single()
+        if (data) setFboProfile(data)
+      }
+    } catch (err) {
+      console.warn('[Auth] Profile fetch failed:', err.message)
+      // Don't block login if profile fetch fails
     }
   }, [])
 
@@ -41,6 +48,9 @@ export function AuthProvider({ children }) {
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      // Skip if login() is handling this manually (avoids double-fetch race condition)
+      if (loginInProgress.current) return
+
       const u = session?.user ?? null
       if (u) {
         setUser(u)
@@ -59,16 +69,23 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     setError(null)
-    const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
-    if (err) {
-      setError(err.message)
+    loginInProgress.current = true
+    try {
+      const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
+      if (err) {
+        setError(err.message)
+        return null
+      }
+      const u = data.user
+      setUser(u)
+      await fetchProfile(u)
+      return u
+    } catch (err) {
+      setError(err.message || 'Login failed')
       return null
+    } finally {
+      loginInProgress.current = false
     }
-    // Pre-fetch profile immediately so we don't wait for onAuthStateChange
-    const u = data.user
-    setUser(u)
-    await fetchProfile(u)
-    return u
   }, [fetchProfile])
 
   const signUp = useCallback(async ({ email, password, role: userRole, displayName, homeAirport, tailNumber }) => {

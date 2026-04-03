@@ -155,13 +155,18 @@ function GradientHeading({ as: Tag = 'h2', className = '', children }) {
 function SignInModal({ open, onClose }) {
   const { login, error, clearError } = useAuth()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [loginRole, setLoginRole] = useState('fbo')
+  const formRef = useRef(null)
 
   useEffect(() => {
-    if (open) { clearError(); setEmail(''); setPassword(''); setLoginRole('fbo') }
+    if (open) {
+      clearError()
+      setLoginRole('fbo')
+      setLoading(false)
+      // Reset form fields when modal opens
+      if (formRef.current) formRef.current.reset()
+    }
   }, [open, clearError])
 
   if (!open) return null
@@ -170,17 +175,18 @@ function SignInModal({ open, onClose }) {
 
   const handleLogin = async (e) => {
     e.preventDefault()
-    // Read values from DOM to handle browser/macOS autofill which bypasses onChange
-    const form = e.target
-    const emailVal = form.elements.email?.value || email
-    const passVal = form.elements.password?.value || password
-    setEmail(emailVal)
-    setPassword(passVal)
+    if (loading) return
 
-    if (!emailVal || !passVal) return
+    // Always read from DOM — uncontrolled inputs work with all autofill methods
+    const form = formRef.current
+    const email = form.email.value.trim()
+    const password = form.password.value
+
+    if (!email || !password) return
 
     setLoading(true)
-    const u = await login(emailVal, passVal)
+    clearError()
+    const u = await login(email, password)
     setLoading(false)
     if (u) {
       onClose()
@@ -228,16 +234,16 @@ function SignInModal({ open, onClose }) {
           </button>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form ref={formRef} onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="block text-[11px] text-[#717784] uppercase tracking-wider mb-1.5">Email</label>
-            <input type="email" name="email" autoComplete="email" value={email} onChange={(e) => { setEmail(e.target.value); clearError() }}
+            <input type="email" name="email" autoComplete="email" onChange={clearError}
               placeholder={isPilot ? 'pilot@email.com' : 'you@yourfbo.com'} required autoFocus
               className="w-full h-10 bg-[#0e121b] border border-[#2b303b] focus:border-[#3b82f6] rounded-lg px-3 text-[13px] text-white placeholder:text-[#525866] focus:outline-none" />
           </div>
           <div>
             <label className="block text-[11px] text-[#717784] uppercase tracking-wider mb-1.5">Password</label>
-            <input type="password" name="password" autoComplete="current-password" value={password} onChange={(e) => { setPassword(e.target.value); clearError() }} placeholder="••••••••" required
+            <input type="password" name="password" autoComplete="current-password" onChange={clearError} placeholder="••••••••" required
               className="w-full h-10 bg-[#0e121b] border border-[#2b303b] focus:border-[#3b82f6] rounded-lg px-3 text-[13px] text-white placeholder:text-[#525866] focus:outline-none" />
           </div>
           {error && (

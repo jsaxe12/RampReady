@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { LogoMark } from '../components/Logo'
@@ -6,24 +6,23 @@ import { LogoMark } from '../components/Logo'
 export default function Login() {
   const { login, error, clearError } = useAuth()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const formRef = useRef(null)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    // Read values from DOM to handle browser/macOS autofill which bypasses onChange
-    const form = e.target
-    const emailVal = form.elements.email?.value || email
-    const passVal = form.elements.password?.value || password
-    // Sync React state so the UI stays consistent
-    setEmail(emailVal)
-    setPassword(passVal)
+    if (loading) return
 
-    if (!emailVal || !passVal) return
+    // Always read from DOM — uncontrolled inputs work with all autofill methods
+    const form = formRef.current
+    const email = form.email.value.trim()
+    const password = form.password.value
+
+    if (!email || !password) return
 
     setLoading(true)
-    const ok = await login(emailVal, passVal)
+    clearError()
+    const ok = await login(email, password)
     setLoading(false)
     if (ok) navigate('/dashboard', { replace: true })
   }
@@ -46,7 +45,7 @@ export default function Login() {
         <div className="bg-surface-800 rounded-xl ring-1 ring-border p-6">
           <h2 className="text-[14px] font-semibold text-text-primary mb-4">Sign in to your FBO</h2>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-[11px] text-text-tertiary uppercase tracking-wider mb-1.5">
                 Email
@@ -55,11 +54,10 @@ export default function Login() {
                 type="email"
                 name="email"
                 autoComplete="email"
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); clearError() }}
                 placeholder="you@yourfbo.com"
                 required
                 autoFocus
+                onChange={clearError}
                 className="w-full h-10 bg-surface-900 border border-surface-500 focus:border-sky rounded-lg px-3 text-[13px] text-text-primary placeholder:text-text-tertiary focus:outline-none"
               />
             </div>
@@ -72,10 +70,9 @@ export default function Login() {
                 type="password"
                 name="password"
                 autoComplete="current-password"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); clearError() }}
                 placeholder="••••••••"
                 required
+                onChange={clearError}
                 className="w-full h-10 bg-surface-900 border border-surface-500 focus:border-sky rounded-lg px-3 text-[13px] text-text-primary placeholder:text-text-tertiary focus:outline-none"
               />
             </div>
