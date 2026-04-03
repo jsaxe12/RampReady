@@ -33,16 +33,19 @@ export function AuthProvider({ children }) {
   }, [])
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       const u = session?.user ?? null
       setUser(u)
-      if (u) fetchProfile(u)
+      if (u) await fetchProfile(u)
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const u = session?.user ?? null
-      if (!u) {
+      if (u) {
+        setUser(u)
+        await fetchProfile(u)
+      } else {
         setUser(null)
         setFboProfile(null)
         setPilotProfile(null)
