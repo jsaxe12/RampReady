@@ -11,7 +11,7 @@ const cache = {
 }
 
 export function PilotPortalProvider({ children }) {
-  const { user, pilotProfile } = useAuth()
+  const { user, pilotProfile, refreshProfile } = useAuth()
 
   const [aircraft, setAircraft] = useState(cache.get('aircraft') || [])
   const [requests, setRequests] = useState(cache.get('requests') || [])
@@ -72,10 +72,12 @@ export function PilotPortalProvider({ children }) {
     return () => supabase.removeChannel(ch)
   }, [user])
 
-  // Search FBOs
+  // Search FBOs — matches ICAO, FBO name, airport name, city
   const searchFBOs = useCallback(async (query) => {
     if (!query || query.length < 2) return []
-    const { data } = await supabase.from('fbo_profiles').select('*').ilike('airport_icao', `%${query.toUpperCase()}%`)
+    const q = query.trim()
+    const { data } = await supabase.from('fbo_profiles').select('*')
+      .or(`airport_icao.ilike.%${q}%,fbo_name.ilike.%${q}%,airport_name.ilike.%${q}%,city.ilike.%${q}%`)
     return data || []
   }, [])
 
@@ -178,8 +180,9 @@ export function PilotPortalProvider({ children }) {
   // Update profile
   const updateProfile = useCallback(async (fields) => {
     if (!user) return
-    await supabase.from('pilot_profiles').update(fields).eq('id', user.id)
-  }, [user])
+    const { error } = await supabase.from('pilot_profiles').update(fields).eq('id', user.id)
+    if (!error) await refreshProfile()
+  }, [user, refreshProfile])
 
   // Derived data
   const primaryAircraft = aircraft.find(a => a.is_primary) || aircraft[0]

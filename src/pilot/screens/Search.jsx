@@ -25,7 +25,6 @@ export default function Search() {
     if (q.length < 2) { setResults([]); return }
     setSearching(true)
     const data = await searchFBOs(q)
-    // Group by airport
     const airports = {}
     data.forEach(fbo => {
       if (!airports[fbo.airport_icao]) airports[fbo.airport_icao] = { icao: fbo.airport_icao, name: fbo.airport_name, city: fbo.city, state: fbo.state, fboCount: 0 }
@@ -35,7 +34,6 @@ export default function Search() {
     setSearching(false)
   }, [searchFBOs])
 
-  // Recently visited airports from request history
   const recentAirports = (() => {
     const seen = new Set()
     return completedRequests
@@ -45,12 +43,14 @@ export default function Search() {
   })()
 
   return (
-    <div className="px-4 pt-5">
-      <h1 className="text-[18px] font-bold mb-4" style={{ color: '#E8EDF7' }}>Find an Airport</h1>
+    <div>
+      <h1 className="text-[32px] mb-6" style={{ color: '#E8EDF7', fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700 }}>
+        Find an Airport
+      </h1>
 
       {/* Search bar */}
-      <div className="relative mb-5">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4A566E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2">
+      <div className="relative mb-8">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4A566E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-5 top-1/2 -translate-y-1/2">
           <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
         <input
@@ -58,45 +58,47 @@ export default function Search() {
           value={query}
           onChange={(e) => handleSearch(e.target.value)}
           placeholder="Search airport or ICAO code..."
-          className="w-full h-11 rounded-xl pl-10 pr-4 text-[14px] border-none outline-none font-mono uppercase"
-          style={{ background: '#0E1525', color: '#E8EDF7', caretColor: '#4EADFF' }}
+          className="w-full h-14 rounded-xl pl-14 pr-5 text-[18px] border-none outline-none uppercase transition-shadow"
+          style={{
+            background: '#0E1525',
+            color: '#E8EDF7',
+            caretColor: '#4EADFF',
+            fontFamily: "'DM Mono', monospace",
+            boxShadow: '0 0 0 1px rgba(78,173,255,0.1)',
+          }}
+          onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(78,173,255,0.4), 0 0 30px rgba(78,173,255,0.08)'}
+          onBlur={(e) => e.target.style.boxShadow = '0 0 0 1px rgba(78,173,255,0.1)'}
           autoFocus
         />
       </div>
 
       {/* Search results */}
       {searching ? (
-        <div className="flex justify-center py-8">
-          <div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: '#4EADFF', borderTopColor: 'transparent' }} />
+        <div className="flex justify-center py-12">
+          <div className="w-7 h-7 border-2 rounded-full animate-spin" style={{ borderColor: '#4EADFF', borderTopColor: 'transparent' }} />
         </div>
       ) : query.length >= 2 && results.length === 0 ? (
-        <div className="rounded-xl p-6 text-center mb-5" style={{ background: '#0E1525' }}>
-          <p className="text-[13px]" style={{ color: '#4A566E' }}>No airports found for "{query}"</p>
+        <div className="rounded-xl p-8 text-center mb-8" style={{ background: '#0E1525' }}>
+          <p className="text-[14px]" style={{ color: '#4A566E' }}>No airports found for "{query}"</p>
         </div>
       ) : results.length > 0 ? (
-        <div className="space-y-2 mb-5">
+        <div className="space-y-3 mb-8">
           {results.map(apt => (
-            <button
-              key={apt.icao}
-              onClick={() => navigate(`/pilot/airport/${apt.icao}`)}
-              className="w-full rounded-xl px-4 py-3 border-none cursor-pointer text-left flex items-center justify-between"
-              style={{ background: '#0E1525' }}
-            >
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[15px] font-bold font-mono" style={{ color: '#4EADFF' }}>{apt.icao}</span>
-                  {apt.name && <span className="text-[12px]" style={{ color: '#8899b0' }}>{apt.name}</span>}
+            <button key={apt.icao} onClick={() => navigate(`/pilot/airport/${apt.icao}`)}
+              className="w-full rounded-xl px-6 py-4 border-none cursor-pointer text-left flex items-center justify-between transition-all"
+              style={{ background: '#0E1525', borderTop: '1px solid rgba(78,173,255,0.15)' }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(78,173,255,0.4)'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(78,173,255,0.15)'}>
+              <div className="flex items-center gap-4">
+                <span className="text-[20px] font-medium" style={{ color: '#4EADFF', fontFamily: "'DM Mono', monospace" }}>{apt.icao}</span>
+                <div>
+                  {apt.name && <p className="text-[14px]" style={{ color: '#E8EDF7' }}>{apt.name}</p>}
+                  {(apt.city || apt.state) && <p className="text-[12px]" style={{ color: '#4A566E' }}>{[apt.city, apt.state].filter(Boolean).join(', ')}</p>}
                 </div>
-                {(apt.city || apt.state) && (
-                  <p className="text-[11px] mt-0.5" style={{ color: '#4A566E' }}>{[apt.city, apt.state].filter(Boolean).join(', ')}</p>
-                )}
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded" style={{ background: '#4EADFF15', color: '#4EADFF' }}>
-                  {apt.fboCount} FBO{apt.fboCount !== 1 ? 's' : ''}
-                </span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4A566E" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
-              </div>
+              <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full" style={{ background: 'rgba(78,173,255,0.1)', color: '#4EADFF', border: '1px solid rgba(78,173,255,0.2)' }}>
+                {apt.fboCount} FBO{apt.fboCount !== 1 ? 's' : ''}
+              </span>
             </button>
           ))}
         </div>
@@ -104,18 +106,17 @@ export default function Search() {
 
       {/* Recently visited */}
       {query.length < 2 && recentAirports.length > 0 && (
-        <div className="mb-5">
-          <p className="text-[11px] uppercase tracking-wider font-semibold mb-2" style={{ color: '#4A566E' }}>Recently Visited</p>
-          <div className="space-y-2">
+        <div className="mb-12">
+          <p className="text-[13px] uppercase tracking-[0.1em] font-medium mb-4" style={{ color: '#4EADFF' }}>
+            Recently Visited
+          </p>
+          <div className="space-y-3">
             {recentAirports.map(apt => (
-              <button
-                key={apt.icao}
-                onClick={() => navigate(`/pilot/airport/${apt.icao}`)}
-                className="w-full rounded-xl px-4 py-3 border-none cursor-pointer text-left flex items-center justify-between"
-                style={{ background: '#0E1525' }}
-              >
-                <span className="text-[14px] font-bold font-mono" style={{ color: '#E8EDF7' }}>{apt.icao}</span>
-                <span className="text-[11px]" style={{ color: '#4A566E' }}>{apt.date}</span>
+              <button key={apt.icao} onClick={() => navigate(`/pilot/airport/${apt.icao}`)}
+                className="w-full rounded-xl px-6 py-4 border-none cursor-pointer text-left flex items-center justify-between transition-all"
+                style={{ background: '#0E1525' }}>
+                <span className="text-[18px] font-medium" style={{ color: '#E8EDF7', fontFamily: "'DM Mono', monospace" }}>{apt.icao}</span>
+                <span className="text-[12px]" style={{ color: '#4A566E' }}>{apt.date}</span>
               </button>
             ))}
           </div>
@@ -125,17 +126,18 @@ export default function Search() {
       {/* Popular airports */}
       {query.length < 2 && (
         <div>
-          <p className="text-[11px] uppercase tracking-wider font-semibold mb-2" style={{ color: '#4A566E' }}>Popular Airports</p>
-          <div className="grid grid-cols-2 gap-2">
+          <p className="text-[13px] uppercase tracking-[0.1em] font-medium mb-4" style={{ color: '#4EADFF' }}>
+            Popular Airports
+          </p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {POPULAR_AIRPORTS.map(apt => (
-              <button
-                key={apt.icao}
-                onClick={() => navigate(`/pilot/airport/${apt.icao}`)}
-                className="rounded-xl px-3 py-3 border-none cursor-pointer text-left"
-                style={{ background: '#0E1525' }}
-              >
-                <p className="text-[14px] font-bold font-mono" style={{ color: '#4EADFF' }}>{apt.icao}</p>
-                <p className="text-[10px] mt-0.5" style={{ color: '#4A566E' }}>{apt.city}</p>
+              <button key={apt.icao} onClick={() => navigate(`/pilot/airport/${apt.icao}`)}
+                className="rounded-xl px-5 py-4 border-none cursor-pointer text-left transition-all"
+                style={{ background: '#0E1525', borderTop: '1px solid rgba(78,173,255,0.1)' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(78,173,255,0.4)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(78,173,255,0.1)'; e.currentTarget.style.transform = 'translateY(0)' }}>
+                <p className="text-[18px] font-medium" style={{ color: '#4EADFF', fontFamily: "'DM Mono', monospace" }}>{apt.icao}</p>
+                <p className="text-[11px] mt-1" style={{ color: '#4A566E' }}>{apt.city}</p>
               </button>
             ))}
           </div>

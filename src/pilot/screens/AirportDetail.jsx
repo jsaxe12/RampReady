@@ -3,12 +3,17 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { usePilotPortal } from '../PilotContext'
 
 function PriceFreshness({ lastUpdated }) {
-  if (!lastUpdated) return <span className="text-[10px]" style={{ color: '#4A566E' }}>No data</span>
+  if (!lastUpdated) return <span className="flex items-center gap-1 text-[10px]" style={{ color: '#4A566E' }}>No data</span>
   const hours = Math.floor((Date.now() - new Date(lastUpdated).getTime()) / 3600000)
-  let color = '#1D9E75'
-  if (hours > 48) color = '#ef4444'
-  else if (hours > 24) color = '#FCD34D'
-  return <span className="text-[10px]" style={{ color }}>{hours < 1 ? 'Just updated' : `${hours}h ago`}</span>
+  let color = '#4ADE80', dotColor = '#4ADE80'
+  if (hours > 48) { color = '#FCD34D'; dotColor = '#EF4444' }
+  else if (hours > 24) { color = '#FCD34D'; dotColor = '#FCD34D' }
+  return (
+    <span className="flex items-center gap-1.5 text-[10px]" style={{ color }}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: dotColor }} />
+      {hours < 1 ? 'Just updated' : `${hours}h ago`}
+    </span>
+  )
 }
 
 function FBOCard({ fbo, onRequest, onCalculator }) {
@@ -16,38 +21,55 @@ function FBOCard({ fbo, onRequest, onCalculator }) {
   const hasWaiver = fbo.ramp_fee_waiver_gallons > 0
 
   return (
-    <div className="rounded-xl p-4 mb-3" style={{ background: '#0E1525' }}>
-      <p className="text-[15px] font-bold mb-2" style={{ color: '#E8EDF7' }}>{fbo.fbo_name}</p>
+    <div className="rounded-xl p-6 mb-4 transition-all"
+      style={{ background: '#0E1525', borderTop: '1px solid rgba(78,173,255,0.2)' }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(78,173,255,0.4)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(78,173,255,0.2)'; e.currentTarget.style.transform = 'translateY(0)' }}>
 
-      {/* Prices */}
-      <div className="flex gap-4 mb-3">
+      {/* Top: name + ICAO */}
+      <div className="flex items-start justify-between mb-5">
+        <p className="text-[16px] font-semibold" style={{ color: '#E8EDF7' }}>{fbo.fbo_name}</p>
+        <span className="text-[15px] font-medium" style={{ color: '#4EADFF', fontFamily: "'DM Mono', monospace" }}>{fbo.airport_icao}</span>
+      </div>
+
+      {/* Fuel prices — the hero of the card */}
+      <div className="flex gap-6 mb-5 pb-5" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
         {fbo.avgas_price > 0 && (
           <div>
-            <p className="text-[10px] uppercase tracking-wider" style={{ color: '#4A566E' }}>100LL Avgas</p>
-            <p className="text-[18px] font-bold font-mono" style={{ color: '#1D9E75' }}>${Number(fbo.avgas_price).toFixed(2)}</p>
+            <p className="text-[10px] uppercase tracking-[0.1em] mb-1" style={{ color: '#4EADFF', fontWeight: 500 }}>100LL Avgas</p>
+            <p className="text-[28px] font-medium" style={{ color: '#4ADE80', fontFamily: "'DM Mono', monospace" }}>
+              ${Number(fbo.avgas_price).toFixed(2)}
+            </p>
             <PriceFreshness lastUpdated={fbo.price_last_updated} />
           </div>
         )}
+        {fbo.avgas_price > 0 && fbo.jeta_price > 0 && (
+          <div className="w-px self-stretch" style={{ background: 'rgba(255,255,255,0.06)' }} />
+        )}
         {fbo.jeta_price > 0 && (
           <div>
-            <p className="text-[10px] uppercase tracking-wider" style={{ color: '#4A566E' }}>Jet-A</p>
-            <p className="text-[18px] font-bold font-mono" style={{ color: '#4EADFF' }}>${Number(fbo.jeta_price).toFixed(2)}</p>
+            <p className="text-[10px] uppercase tracking-[0.1em] mb-1" style={{ color: '#4EADFF', fontWeight: 500 }}>Jet-A</p>
+            <p className="text-[28px] font-medium" style={{ color: '#4EADFF', fontFamily: "'DM Mono', monospace" }}>
+              ${Number(fbo.jeta_price).toFixed(2)}
+            </p>
             <PriceFreshness lastUpdated={fbo.price_last_updated} />
           </div>
         )}
       </div>
 
-      {/* Ramp fee waiver */}
+      {/* Waiver banner */}
       {hasWaiver && (
-        <div className="rounded-lg px-3 py-2 mb-3 flex items-center justify-between" style={{ background: '#FCD34D10', border: '1px solid #FCD34D30' }}>
-          <p className="text-[11px]" style={{ color: '#FCD34D' }}>
-            Buy {fbo.ramp_fee_waiver_gallons}+ gal → ${fbo.ramp_fee} ramp fee waived
-          </p>
-          <button
-            onClick={(e) => { e.stopPropagation(); onCalculator(fbo.id) }}
-            className="text-[10px] font-semibold px-2 py-1 rounded border-none cursor-pointer"
-            style={{ background: '#FCD34D20', color: '#FCD34D' }}
-          >
+        <div className="rounded-lg px-4 py-3 mb-5 flex items-center justify-between"
+          style={{ background: 'rgba(252,211,77,0.08)', borderTop: '0.5px solid rgba(252,211,77,0.2)', borderBottom: '0.5px solid rgba(252,211,77,0.2)' }}>
+          <div className="flex items-center gap-2">
+            <span style={{ color: '#FCD34D' }}>⛽</span>
+            <p className="text-[12px] font-medium" style={{ color: '#FCD34D' }}>
+              Buy {fbo.ramp_fee_waiver_gallons}+ gal → ${fbo.ramp_fee} ramp fee waived
+            </p>
+          </div>
+          <button onClick={(e) => { e.stopPropagation(); onCalculator(fbo.id) }}
+            className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border-none cursor-pointer"
+            style={{ background: 'rgba(252,211,77,0.15)', color: '#FCD34D' }}>
             Calculate
           </button>
         </div>
@@ -55,25 +77,30 @@ function FBOCard({ fbo, onRequest, onCalculator }) {
 
       {/* Services */}
       {services.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-3">
-          {services.map(s => (
-            <span key={s} className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: '#1a2540', color: '#8899b0' }}>{s}</span>
-          ))}
+        <div className="flex flex-wrap gap-1.5 mb-5">
+          {services.map(s => {
+            const isFuel = /fuel|avgas|jet/i.test(s)
+            const isRamp = /ramp|park|tie/i.test(s)
+            return (
+              <span key={s} className="text-[11px] px-2.5 py-1 rounded-full"
+                style={{
+                  background: isFuel ? 'rgba(74,222,128,0.08)' : isRamp ? 'rgba(78,173,255,0.08)' : 'rgba(255,255,255,0.04)',
+                  color: isFuel ? '#4ADE80' : isRamp ? '#4EADFF' : '#8B9AB0',
+                }}>
+                {s}
+              </span>
+            )
+          })}
         </div>
       )}
 
-      {/* Hours */}
-      {fbo.hours && (
-        <p className="text-[11px] mb-3" style={{ color: '#4A566E' }}>Hours: {fbo.hours}</p>
-      )}
-
-      <button
-        onClick={() => onRequest(fbo)}
-        className="w-full h-10 rounded-lg border-none cursor-pointer text-[13px] font-semibold flex items-center justify-center gap-2"
-        style={{ background: '#4EADFF', color: '#0A0F1E' }}
-      >
-        Request services here
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
+      {/* CTA */}
+      <button onClick={() => onRequest(fbo)}
+        className="w-full h-[44px] rounded-lg border-none cursor-pointer text-[14px] font-semibold flex items-center justify-center gap-2 transition-all"
+        style={{ background: '#4EADFF', color: '#080D18' }}
+        onMouseEnter={e => e.currentTarget.style.background = '#6BBFFF'}
+        onMouseLeave={e => e.currentTarget.style.background = '#4EADFF'}>
+        Request Services at {fbo.fbo_name} →
       </button>
     </div>
   )
@@ -89,10 +116,7 @@ export default function AirportDetail() {
 
   useEffect(() => {
     setLoading(true)
-    searchFBOsByAirport(icao).then(data => {
-      setFbos(data)
-      setLoading(false)
-    })
+    searchFBOsByAirport(icao).then(data => { setFbos(data); setLoading(false) })
   }, [icao, searchFBOsByAirport])
 
   const sorted = [...fbos].sort((a, b) => {
@@ -106,34 +130,32 @@ export default function AirportDetail() {
   const state = fbos[0]?.state
 
   return (
-    <div className="px-4 pt-5">
-      {/* Back + header */}
-      <button onClick={() => navigate(-1)} className="flex items-center gap-1 mb-3 bg-transparent border-none cursor-pointer" style={{ color: '#4A566E' }}>
+    <div>
+      <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 mb-6 bg-transparent border-none cursor-pointer" style={{ color: '#4A566E' }}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
-        <span className="text-[12px]">Back</span>
+        <span className="text-[13px]">Back</span>
       </button>
 
-      <div className="mb-4">
-        <div className="flex items-center gap-3">
-          <h1 className="text-[28px] font-bold font-mono" style={{ color: '#4EADFF' }}>{icao}</h1>
-          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#4EADFF15', color: '#4EADFF' }}>
+      {/* Hero glow header */}
+      <div className="mb-8 relative">
+        <div className="absolute top-0 left-0 w-[300px] h-[200px] -translate-x-1/4 -translate-y-1/4 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(78,173,255,0.06) 0%, transparent 70%)' }} />
+        <div className="flex items-center gap-4 relative z-10">
+          <h1 className="text-[40px] lg:text-[48px] font-medium" style={{ color: '#4EADFF', fontFamily: "'DM Mono', monospace" }}>{icao}</h1>
+          <span className="text-[12px] font-semibold px-3 py-1 rounded-full" style={{ background: 'rgba(78,173,255,0.1)', color: '#4EADFF', border: '1px solid rgba(78,173,255,0.2)' }}>
             {fbos.length} FBO{fbos.length !== 1 ? 's' : ''}
           </span>
         </div>
-        {airportName && <p className="text-[13px] mt-1" style={{ color: '#E8EDF7' }}>{airportName}</p>}
-        {(city || state) && <p className="text-[12px]" style={{ color: '#4A566E' }}>{[city, state].filter(Boolean).join(', ')}</p>}
+        {airportName && <p className="text-[15px] mt-1 relative z-10" style={{ color: '#E8EDF7' }}>{airportName}</p>}
+        {(city || state) && <p className="text-[13px] relative z-10" style={{ color: '#4A566E' }}>{[city, state].filter(Boolean).join(', ')}</p>}
       </div>
 
-      {/* Sort toggle */}
+      {/* Sort */}
       {fbos.length > 1 && (
-        <div className="flex gap-1 mb-4 p-0.5 rounded-lg" style={{ background: '#0E1525' }}>
+        <div className="flex gap-1 p-1 rounded-lg mb-6" style={{ background: '#0E1525' }}>
           {['price', 'name', 'services'].map(s => (
-            <button
-              key={s}
-              onClick={() => setSort(s)}
-              className="flex-1 h-7 text-[11px] font-semibold rounded-md border-none cursor-pointer capitalize"
-              style={{ background: sort === s ? '#4EADFF20' : 'transparent', color: sort === s ? '#4EADFF' : '#4A566E' }}
-            >
+            <button key={s} onClick={() => setSort(s)}
+              className="flex-1 h-9 text-[12px] font-medium rounded-md border-none cursor-pointer capitalize transition-all"
+              style={{ background: sort === s ? 'rgba(78,173,255,0.15)' : 'transparent', color: sort === s ? '#4EADFF' : '#4A566E' }}>
               {s}
             </button>
           ))}
@@ -142,20 +164,17 @@ export default function AirportDetail() {
 
       {/* FBO cards */}
       {loading ? (
-        <div className="space-y-3">{[1,2].map(i => <div key={i} className="h-48 rounded-xl animate-pulse" style={{ background: '#162033' }} />)}</div>
+        <div className="space-y-4">{[1,2].map(i => <div key={i} className="h-64 rounded-xl animate-pulse" style={{ background: '#162033' }} />)}</div>
       ) : sorted.length === 0 ? (
-        <div className="rounded-xl p-8 text-center" style={{ background: '#0E1525' }}>
-          <p className="text-[14px] font-medium mb-1" style={{ color: '#E8EDF7' }}>No RampReady FBOs yet</p>
-          <p className="text-[12px]" style={{ color: '#4A566E' }}>No FBOs at {icao} are on RampReady yet.</p>
+        <div className="rounded-xl p-10 text-center" style={{ background: '#0E1525' }}>
+          <p className="text-[15px] font-medium mb-1" style={{ color: '#E8EDF7' }}>No RampReady FBOs yet</p>
+          <p className="text-[13px]" style={{ color: '#4A566E' }}>No FBOs at {icao} are on RampReady yet.</p>
         </div>
       ) : (
         sorted.map(fbo => (
-          <FBOCard
-            key={fbo.id}
-            fbo={fbo}
+          <FBOCard key={fbo.id} fbo={fbo}
             onRequest={(f) => navigate('/pilot/request/new', { state: { fbo: f, airportIcao: icao } })}
-            onCalculator={(id) => navigate(`/pilot/calculator/${id}`)}
-          />
+            onCalculator={(id) => navigate(`/pilot/calculator/${id}`)} />
         ))
       )}
     </div>

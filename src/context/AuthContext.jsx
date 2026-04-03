@@ -101,8 +101,12 @@ export function AuthProvider({ children }) {
 
   const clearError = useCallback(() => setError(null), [])
 
+  const refreshProfile = useCallback(async () => {
+    if (user) await fetchProfile(user)
+  }, [user, fetchProfile])
+
   return (
-    <AuthContext.Provider value={{ user, role, fboProfile, pilotProfile, loading, error, login, signUp, logout, clearError }}>
+    <AuthContext.Provider value={{ user, role, fboProfile, pilotProfile, loading, error, login, signUp, logout, clearError, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   )

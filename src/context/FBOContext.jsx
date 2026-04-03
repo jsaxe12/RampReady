@@ -73,11 +73,11 @@ export function FBOProvider({ children }) {
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setArrivals((prev) => [...prev, payload.new].sort((a, b) => a.eta.localeCompare(b.eta)))
+            setArrivals((prev) => [...prev, payload.new].sort((a, b) => (a.eta || '').localeCompare(b.eta || '')))
           } else if (payload.eventType === 'UPDATE') {
             setArrivals((prev) => {
-              // If status changed to declined, remove it
-              if (payload.new.status === 'declined') {
+              // If status changed to declined or cancelled, remove it
+              if (['declined', 'cancelled'].includes(payload.new.status)) {
                 return prev.filter((a) => a.id !== payload.new.id)
               }
               return prev.map((a) => (a.id === payload.new.id ? payload.new : a))
@@ -130,27 +130,41 @@ export function FBOProvider({ children }) {
     }
   }, [user])
 
-  // Confirm arrival — update in Supabase
-  const confirmArrival = useCallback(async (id) => {
+  // Confirm arrival — update in Supabase, optionally with notes
+  const confirmArrival = useCallback(async (id, responseNotes) => {
+    const update = { status: 'confirmed' }
     const { error } = await supabase
       .from('arrivals')
-      .update({ status: 'confirmed' })
+      .update(update)
       .eq('id', id)
     if (!error) {
+      // If this is a pilot request, also store the response notes on the service_request
+      if (responseNotes) {
+        const arrival = arrivals.find(a => a.id === id)
+        if (arrival?.service_request_id) {
+          await supabase.from('service_requests').update({ fbo_response_notes: responseNotes }).eq('id', arrival.service_request_id)
+        }
+      }
       setArrivals((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'confirmed' } : a)))
     }
-  }, [])
+  }, [arrivals])
 
-  // Decline arrival — update status in Supabase
-  const declineArrival = useCallback(async (id) => {
+  // Decline arrival — update status in Supabase, optionally with notes
+  const declineArrival = useCallback(async (id, responseNotes) => {
     const { error } = await supabase
       .from('arrivals')
       .update({ status: 'declined' })
       .eq('id', id)
     if (!error) {
+      if (responseNotes) {
+        const arrival = arrivals.find(a => a.id === id)
+        if (arrival?.service_request_id) {
+          await supabase.from('service_requests').update({ fbo_response_notes: responseNotes }).eq('id', arrival.service_request_id)
+        }
+      }
       setArrivals((prev) => prev.filter((a) => a.id !== id))
     }
-  }, [])
+  }, [arrivals])
 
   // Add arrival — insert into Supabase
   const addArrival = useCallback(async (arrival) => {

@@ -128,17 +128,32 @@ export default function ArrivalCard({ arrival }) {
   const [declining, setDeclining] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [trackOpen, setTrackOpen] = useState(false)
+  const [showNotes, setShowNotes] = useState(false)
+  const [responseNotes, setResponseNotes] = useState('')
+  const [noteAction, setNoteAction] = useState(null) // 'confirm' | 'decline'
 
   const handleConfirm = async () => {
+    if (arrival.service_request_id && !showNotes) {
+      setNoteAction('confirm')
+      setShowNotes(true)
+      return
+    }
     setConfirming(true)
-    await confirmArrival(arrival.id)
+    await confirmArrival(arrival.id, responseNotes)
     setConfirming(false)
+    setShowNotes(false)
   }
 
   const handleDecline = async () => {
+    if (arrival.service_request_id && !showNotes) {
+      setNoteAction('decline')
+      setShowNotes(true)
+      return
+    }
     setDeclining(true)
-    await declineArrival(arrival.id)
+    await declineArrival(arrival.id, responseNotes)
     setDeclining(false)
+    setShowNotes(false)
   }
 
   return (
@@ -237,9 +252,33 @@ export default function ArrivalCard({ arrival }) {
             </p>
           )}
 
+          {/* Response notes input for pilot requests */}
+          {showNotes && (
+            <div className="mt-2 p-2 rounded-md bg-surface-700">
+              <input
+                type="text"
+                value={responseNotes}
+                onChange={(e) => setResponseNotes(e.target.value)}
+                placeholder={noteAction === 'confirm' ? 'Optional note for pilot...' : 'Reason for decline (optional)...'}
+                className="w-full h-7 px-2 bg-surface-800 rounded text-[12px] text-text-primary placeholder:text-text-tertiary border-none outline-none focus:ring-1 focus:ring-sky/40 mb-2"
+              />
+              <div className="flex gap-1.5">
+                <button onClick={() => { setShowNotes(false); setNoteAction(null); setResponseNotes('') }}
+                  className="h-6 px-2.5 bg-surface-600 text-text-secondary text-[11px] rounded cursor-pointer border-none">Cancel</button>
+                <button
+                  onClick={noteAction === 'confirm' ? handleConfirm : handleDecline}
+                  disabled={confirming || declining}
+                  className={`h-6 px-2.5 text-[11px] font-semibold rounded cursor-pointer border-none disabled:opacity-50 ${noteAction === 'confirm' ? 'bg-good-muted text-good' : 'bg-danger-muted text-danger'}`}
+                >
+                  {noteAction === 'confirm' ? (confirming ? 'Confirming...' : 'Confirm') : (declining ? 'Declining...' : 'Decline')}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Actions row */}
           <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
-            {!isConfirmed && (
+            {!isConfirmed && !showNotes && (
               <>
                 <button
                   onClick={handleConfirm}

@@ -31,25 +31,31 @@ function ConversationList() {
   }, [convRequests.length])
 
   return (
-    <div className="px-4 pt-5">
-      <h1 className="text-[18px] font-bold mb-4" style={{ color: '#E8EDF7' }}>Messages</h1>
+    <div>
+      <h1 className="text-[32px] mb-6" style={{ color: '#E8EDF7', fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700 }}>
+        Messages
+      </h1>
       {convRequests.length === 0 ? (
-        <div className="rounded-xl p-8 text-center" style={{ background: '#0E1525' }}>
-          <p className="text-[13px]" style={{ color: '#4A566E' }}>No conversations yet. Send a service request to start messaging with an FBO.</p>
+        <div className="rounded-xl p-10 text-center" style={{ background: '#0E1525' }}>
+          <p className="text-[14px]" style={{ color: '#4A566E' }}>No conversations yet. Send a service request to start messaging with an FBO.</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {convRequests.map(req => {
             const fbo = fboNames[req.fbo_id]
             return (
               <button key={req.id} onClick={() => navigate(`/pilot/messages/${req.id}`)}
-                className="w-full rounded-xl px-4 py-3 border-none cursor-pointer text-left flex items-center justify-between"
-                style={{ background: '#0E1525' }}>
+                className="w-full rounded-xl px-5 py-4 border-none cursor-pointer text-left flex items-center justify-between transition-all"
+                style={{ background: '#0E1525', border: '0.5px solid rgba(255,255,255,0.06)' }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'}>
                 <div>
-                  <p className="text-[13px] font-semibold" style={{ color: '#E8EDF7' }}>{fbo?.fbo_name || 'FBO'}</p>
-                  <p className="text-[11px]" style={{ color: '#4A566E' }}>{fbo?.airport_icao || req.airport_icao} · {req.status}</p>
+                  <p className="text-[14px] font-medium" style={{ color: '#E8EDF7' }}>{fbo?.fbo_name || 'FBO'}</p>
+                  <p className="text-[12px] mt-0.5" style={{ color: '#4A566E' }}>
+                    <span style={{ fontFamily: "'DM Mono', monospace", color: '#4EADFF' }}>{fbo?.airport_icao || req.airport_icao}</span> · {req.status}
+                  </p>
                 </div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4A566E" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4A566E" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
               </button>
             )
           })}
@@ -86,7 +92,6 @@ function ConversationView() {
     fetchMessages(requestId).then(data => { setMsgs(data); setLoading(false) })
   }, [requestId, fetchMessages])
 
-  // Real-time messages
   useEffect(() => {
     const ch = supabase.channel(`chat-${requestId}`).on('postgres_changes', {
       event: 'INSERT', schema: 'public', table: 'messages', filter: `request_id=eq.${requestId}`,
@@ -112,34 +117,34 @@ function ConversationView() {
   }
 
   return (
-    <div className="flex flex-col h-screen" style={{ maxHeight: 'calc(100vh - 56px)' }}>
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 160px)', minHeight: '500px' }}>
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#1a2235' }}>
+      <div className="flex items-center gap-3 pb-4 mb-4" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
         <button onClick={() => navigate('/pilot/messages')} className="bg-transparent border-none cursor-pointer" style={{ color: '#4A566E' }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
         </button>
-        <p className="text-[13px] font-semibold" style={{ color: '#E8EDF7' }}>{fboName}</p>
+        <p className="text-[14px] font-medium" style={{ color: '#E8EDF7' }}>{fboName}</p>
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-3 pr-2">
         {loading ? (
-          <p className="text-[12px] text-center py-4" style={{ color: '#4A566E' }}>Loading...</p>
+          <p className="text-[13px] text-center py-8" style={{ color: '#4A566E' }}>Loading...</p>
         ) : msgs.length === 0 ? (
-          <p className="text-[12px] text-center py-4" style={{ color: '#4A566E' }}>No messages yet — start the conversation.</p>
+          <p className="text-[13px] text-center py-8" style={{ color: '#4A566E' }}>No messages yet — start the conversation.</p>
         ) : (
           msgs.map(m => (
             <div key={m.id} className={`flex flex-col ${m.sender_role === 'pilot' ? 'items-end' : 'items-start'}`}>
-              <div className="max-w-[80%] px-3 py-2 rounded-2xl text-[13px] leading-relaxed"
+              <div className="max-w-[75%] px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed"
                 style={{
                   background: m.sender_role === 'pilot' ? '#4EADFF' : '#0E1525',
-                  color: m.sender_role === 'pilot' ? '#0A0F1E' : '#E8EDF7',
+                  color: m.sender_role === 'pilot' ? '#080D18' : '#E8EDF7',
                   borderBottomRightRadius: m.sender_role === 'pilot' ? '4px' : undefined,
                   borderBottomLeftRadius: m.sender_role !== 'pilot' ? '4px' : undefined,
                 }}>
                 {m.body}
               </div>
-              <span className="text-[9px] mt-0.5 px-1" style={{ color: '#4A566E' }}>
+              <span className="text-[10px] mt-1 px-1" style={{ color: '#4A566E' }}>
                 {new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
               </span>
             </div>
@@ -148,10 +153,10 @@ function ConversationView() {
       </div>
 
       {/* Quick replies */}
-      <div className="px-4 pb-1 flex gap-1.5 overflow-x-auto scrollbar-none">
+      <div className="pt-3 pb-2 flex gap-2 overflow-x-auto scrollbar-none">
         {QUICK_REPLIES.map(qr => (
           <button key={qr} onClick={() => handleSend(qr)}
-            className="text-[10px] px-2.5 py-1.5 rounded-full border-none cursor-pointer whitespace-nowrap shrink-0"
+            className="text-[11px] px-3 py-1.5 rounded-full border-none cursor-pointer whitespace-nowrap shrink-0 transition-all"
             style={{ background: '#0E1525', color: '#4A566E' }}>
             {qr}
           </button>
@@ -159,15 +164,15 @@ function ConversationView() {
       </div>
 
       {/* Input */}
-      <div className="px-4 py-3 flex gap-2">
+      <div className="flex gap-3 pt-2">
         <input ref={inputRef} type="text" value={text} onChange={e => setText(e.target.value.slice(0, 500))}
           onKeyDown={e => e.key === 'Enter' && handleSend()}
-          placeholder="Message..." className="flex-1 h-10 rounded-xl px-4 text-[13px] border-none outline-none"
+          placeholder="Message..." className="flex-1 h-12 rounded-xl px-5 text-[14px] border-none outline-none"
           style={{ background: '#0E1525', color: '#E8EDF7', caretColor: '#4EADFF' }} />
         <button onClick={() => handleSend()} disabled={!text.trim() || sending}
-          className="h-10 w-10 rounded-xl border-none cursor-pointer flex items-center justify-center disabled:opacity-30"
+          className="h-12 w-12 rounded-xl border-none cursor-pointer flex items-center justify-center disabled:opacity-30 transition-all"
           style={{ background: '#4EADFF' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0A0F1E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#080D18" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
           </svg>
         </button>

@@ -3,9 +3,12 @@
   "configurations": [
     {
       "name": "rampready",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 5173
+      "runtimeExecutable": "/usr/local/bin/npx",
+      "runtimeArgs": ["vite", "--port", "5173"],
+      "port": 5173,
+      "env": {
+        "PATH": "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+      }
     }
   ]
 }
