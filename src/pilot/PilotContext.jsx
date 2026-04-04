@@ -127,6 +127,13 @@ export function PilotPortalProvider({ children }) {
               type: 'request_declined',
               key: `req-declined-${r.id}`,
             })
+          } else if (r.status === 'pending' && r.edited_by === 'fbo' && r.edited_at) {
+            showToast({
+              title: 'Request Updated by FBO',
+              body: `${r.airport_icao} — the FBO has edited your request`,
+              type: 'info',
+              key: `req-edited-${r.id}-${r.edited_at}`,
+            })
           }
         }
       } else if (payload.eventType === 'DELETE') {
@@ -259,6 +266,35 @@ export function PilotPortalProvider({ children }) {
     return null
   }, [user])
 
+  // Edit request — optimistic: update UI instantly, reset to pending so FBO must re-confirm
+  const editRequest = useCallback(async (id, updates) => {
+    const req = requests.find(r => r.id === id)
+    const now = new Date().toISOString()
+    // Optimistic UI — merge edits + reset status to pending
+    setRequests(p => p.map(r => r.id === id ? { ...r, ...updates, status: 'pending', edited_at: now, edited_by: 'pilot' } : r))
+    // All DB operations in background — never block the UI
+    ;(async () => {
+      try {
+        await supabase.from('service_requests').update({
+          ...updates, status: 'pending', edited_at: now, edited_by: 'pilot',
+        }).eq('id', id)
+        await supabase.from('arrivals').update({
+          ...updates, status: 'pending', edited_at: now, edited_by: 'pilot',
+        }).eq('service_request_id', id)
+        if (req?.fbo_id) {
+          await supabase.from('notifications').insert({
+            user_id: req.fbo_id,
+            title: 'Request Edited',
+            body: `${updates.tail_number || req.tail_number || 'A pilot'} edited their request at ${req.airport_icao || 'your FBO'}`,
+            type: 'arrival',
+          })
+        }
+      } catch (e) {
+        console.warn('[Pilot] Edit sync failed (non-blocking):', e.message)
+      }
+    })()
+  }, [requests])
+
   // Cancel request — optimistic: update UI instantly, sync to FBO in background
   const cancelRequest = useCallback(async (id) => {
     const req = requests.find(r => r.id === id)
@@ -377,7 +413,7 @@ export function PilotPortalProvider({ children }) {
       notifications, unreadNotifications, unreadMessages, setUnreadMessages,
       flightsThisYear, totalFuel, favoriteFBO,
       searchFBOs, searchFBOsByAirport, getFBO, browseAllFBOs,
-      submitRequest, cancelRequest,
+      submitRequest, editRequest, cancelRequest,
       fetchMessages, sendMessage,
       fetchAircraft, addAircraft, deleteAircraft,
       fetchNotifications, markNotificationRead, markAllNotificationsRead,

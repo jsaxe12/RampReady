@@ -193,63 +193,158 @@ function ADSBInline({ tailNumber }) {
   )
 }
 
+const SERVICE_OPTIONS = [
+  'Fuel (100LL Avgas)', 'Fuel (Jet-A)', 'Ramp parking', 'Hangar overnight',
+  'Crew car', 'GPU / Ground power', 'Lav service', 'De-icing', 'Catering', 'Other',
+]
+
 export default function ArrivalCard({ arrival }) {
-  const { confirmArrival, declineArrival, cancelArrival } = useFBO()
+  const { confirmArrival, declineArrival, cancelArrival, editArrival } = useFBO()
   const isConfirmed = arrival.status === 'confirmed'
-  const [confirming, setConfirming] = useState(false)
-  const [declining, setDeclining] = useState(false)
-  const [cancelling, setCancelling] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [trackOpen, setTrackOpen] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
   const [responseNotes, setResponseNotes] = useState('')
   const [noteAction, setNoteAction] = useState(null) // 'confirm' | 'decline'
+  const [editMode, setEditMode] = useState(false)
+  const [editForm, setEditForm] = useState({})
 
-  const handleConfirm = async () => {
-    if (arrival.service_request_id && !showNotes) {
-      setNoteAction('confirm')
-      setShowNotes(true)
-      return
-    }
-    setConfirming(true)
-    try {
-      await confirmArrival(arrival.id, responseNotes)
-    } catch (e) {
-      console.error('[ArrivalCard] confirm failed:', e)
-    } finally {
-      setConfirming(false)
-      setShowNotes(false)
-    }
+  const handleConfirm = () => {
+    confirmArrival(arrival.id, responseNotes)
+    setShowNotes(false)
+    setResponseNotes('')
+    setNoteAction(null)
   }
 
-  const handleDecline = async () => {
+  const handleDecline = () => {
     if (arrival.service_request_id && !showNotes) {
       setNoteAction('decline')
       setShowNotes(true)
       return
     }
-    setDeclining(true)
-    try {
-      await declineArrival(arrival.id, responseNotes)
-    } catch (e) {
-      console.error('[ArrivalCard] decline failed:', e)
-    } finally {
-      setDeclining(false)
-      setShowNotes(false)
-    }
+    declineArrival(arrival.id, responseNotes)
+    setShowNotes(false)
+    setResponseNotes('')
+    setNoteAction(null)
   }
 
-  const handleCancel = async () => {
-    setCancelling(true)
-    try {
-      await cancelArrival(arrival.id)
-    } catch (e) {
-      console.error('[ArrivalCard] cancel failed:', e)
-    } finally {
-      setCancelling(false)
-      setShowCancelConfirm(false)
-    }
+  const handleCancel = () => {
+    cancelArrival(arrival.id)
+    setShowCancelConfirm(false)
+  }
+
+  const startEdit = () => {
+    setEditForm({
+      tail_number: arrival.tail_number || '',
+      aircraft_type: arrival.aircraft_type || '',
+      eta: arrival.eta || '',
+      pax_count: arrival.pax_count || 0,
+      services: [...(arrival.services || [])],
+      fuel_type: arrival.fuel_type || null,
+      fuel_quantity: arrival.fuel_quantity || null,
+      pilot_notes: arrival.pilot_notes || '',
+    })
+    setEditMode(true)
+  }
+
+  const handleSaveEdit = () => {
+    const hasFuel = editForm.services.some(s => s.startsWith('Fuel'))
+    const fuelType = editForm.services.includes('Fuel (Jet-A)') ? 'Jet-A' : editForm.services.includes('Fuel (100LL Avgas)') ? 'Avgas' : null
+    editArrival(arrival.id, {
+      tail_number: editForm.tail_number,
+      aircraft_type: editForm.aircraft_type,
+      eta: editForm.eta,
+      pax_count: editForm.pax_count,
+      services: editForm.services,
+      fuel_type: fuelType,
+      fuel_quantity: hasFuel ? editForm.fuel_quantity : null,
+      pilot_notes: editForm.pilot_notes,
+    })
+    setEditMode(false)
+  }
+
+  const toggleEditService = (s) => {
+    setEditForm(f => ({
+      ...f,
+      services: f.services.includes(s) ? f.services.filter(x => x !== s) : [...f.services, s],
+    }))
+  }
+
+  if (editMode) {
+    return (
+      <div className="group bg-surface-800 rounded-lg ring-1 ring-sky/30">
+        <div className="px-3 sm:px-4 py-3 sm:py-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[13px] font-semibold text-sky uppercase tracking-wider">Edit Arrival</p>
+            {arrival.edited_at && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky/10 text-sky">
+                Last edited by {arrival.edited_by}
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <div>
+              <label className="block text-[9px] uppercase tracking-wider text-text-tertiary mb-0.5">Tail</label>
+              <input type="text" value={editForm.tail_number} onChange={e => setEditForm(f => ({ ...f, tail_number: e.target.value.toUpperCase() }))}
+                className="w-full h-8 px-2 bg-surface-700 rounded text-[13px] font-mono font-bold text-text-primary border-none outline-none focus:ring-1 focus:ring-sky/40" />
+            </div>
+            <div>
+              <label className="block text-[9px] uppercase tracking-wider text-text-tertiary mb-0.5">Aircraft</label>
+              <input type="text" value={editForm.aircraft_type} onChange={e => setEditForm(f => ({ ...f, aircraft_type: e.target.value }))}
+                className="w-full h-8 px-2 bg-surface-700 rounded text-[13px] text-text-primary border-none outline-none focus:ring-1 focus:ring-sky/40" />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2 mb-2">
+            <div>
+              <label className="block text-[9px] uppercase tracking-wider text-text-tertiary mb-0.5">ETA</label>
+              <input type="text" value={editForm.eta} onChange={e => setEditForm(f => ({ ...f, eta: e.target.value }))}
+                placeholder="HH:MM"
+                className="w-full h-8 px-2 bg-surface-700 rounded text-[13px] font-mono text-caution border-none outline-none focus:ring-1 focus:ring-sky/40" />
+            </div>
+            <div>
+              <label className="block text-[9px] uppercase tracking-wider text-text-tertiary mb-0.5">Pax</label>
+              <input type="number" min="0" max="20" value={editForm.pax_count} onChange={e => setEditForm(f => ({ ...f, pax_count: parseInt(e.target.value) || 0 }))}
+                className="w-full h-8 px-2 bg-surface-700 rounded text-[13px] text-text-primary border-none outline-none focus:ring-1 focus:ring-sky/40" />
+            </div>
+            <div>
+              <label className="block text-[9px] uppercase tracking-wider text-text-tertiary mb-0.5">Fuel (gal)</label>
+              <input type="number" value={editForm.fuel_quantity || ''} onChange={e => setEditForm(f => ({ ...f, fuel_quantity: parseInt(e.target.value) || null }))}
+                className="w-full h-8 px-2 bg-surface-700 rounded text-[13px] font-mono text-text-primary border-none outline-none focus:ring-1 focus:ring-sky/40" />
+            </div>
+          </div>
+          <div className="mb-2">
+            <label className="block text-[9px] uppercase tracking-wider text-text-tertiary mb-0.5">Services</label>
+            <div className="flex flex-wrap gap-1">
+              {SERVICE_OPTIONS.map(s => (
+                <button key={s} onClick={() => toggleEditService(s)}
+                  className={`h-6 px-2 rounded text-[10px] font-medium border-none cursor-pointer transition-all ${
+                    editForm.services.includes(s) ? 'bg-sky/15 text-sky ring-1 ring-sky/30' : 'bg-surface-700 text-text-tertiary'
+                  }`}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mb-3">
+            <label className="block text-[9px] uppercase tracking-wider text-text-tertiary mb-0.5">Pilot Notes</label>
+            <textarea value={editForm.pilot_notes} onChange={e => setEditForm(f => ({ ...f, pilot_notes: e.target.value.slice(0, 500) }))}
+              rows={2} className="w-full px-2 py-1.5 bg-surface-700 rounded text-[12px] text-text-secondary border-none outline-none resize-none focus:ring-1 focus:ring-sky/40" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setEditMode(false)}
+              className="flex-1 h-7 bg-surface-700 hover:bg-surface-600 text-text-secondary text-[12px] font-medium rounded-md cursor-pointer border-none">
+              Cancel
+            </button>
+            <button onClick={handleSaveEdit}
+              className="flex-1 h-7 bg-sky hover:bg-sky/90 text-white text-[12px] font-semibold rounded-md cursor-pointer border-none">
+              Save & Reset to Pending
+            </button>
+          </div>
+          <p className="text-[9px] text-text-tertiary text-center mt-1.5">Edits reset status to pending — you'll need to re-confirm</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -329,10 +424,17 @@ export default function ArrivalCard({ arrival }) {
             )}
           </div>
 
-          {/* Pilot request indicator */}
-          {arrival.service_request_id && (
+          {/* Pilot request indicator + edited badge */}
+          {(arrival.service_request_id || arrival.edited_at) && (
             <div className="flex items-center gap-1.5 mt-2">
-              <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-good/15 text-good">Pilot Request</span>
+              {arrival.service_request_id && (
+                <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-good/15 text-good">Pilot Request</span>
+              )}
+              {arrival.edited_at && (
+                <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-sky/15 text-sky">
+                  Edited by {arrival.edited_by}
+                </span>
+              )}
               {arrival.fuel_type && arrival.fuel_quantity && (
                 <span className="text-[11px] text-text-secondary">
                   {arrival.fuel_type} · {arrival.fuel_quantity} gal
@@ -351,25 +453,37 @@ export default function ArrivalCard({ arrival }) {
           {/* Live ADS-B tracking */}
           <ADSBInline tailNumber={arrival.tail_number} />
 
-          {/* Response notes input for pilot requests */}
-          {showNotes && (
+          {/* Optional response notes for pilot requests — inline, always visible for pilot requests */}
+          {arrival.service_request_id && !isConfirmed && (
+            <div className="mt-2">
+              <input
+                type="text"
+                value={responseNotes}
+                onChange={(e) => setResponseNotes(e.target.value)}
+                placeholder="Optional note for pilot..."
+                className="w-full h-7 px-2 bg-surface-700 rounded text-[12px] text-text-primary placeholder:text-text-tertiary border-none outline-none focus:ring-1 focus:ring-sky/40"
+              />
+            </div>
+          )}
+
+          {/* Decline reason input */}
+          {showNotes && noteAction === 'decline' && (
             <div className="mt-2 p-2 rounded-md bg-surface-700">
               <input
                 type="text"
                 value={responseNotes}
                 onChange={(e) => setResponseNotes(e.target.value)}
-                placeholder={noteAction === 'confirm' ? 'Optional note for pilot...' : 'Reason for decline (optional)...'}
+                placeholder="Reason for decline (optional)..."
                 className="w-full h-7 px-2 bg-surface-800 rounded text-[12px] text-text-primary placeholder:text-text-tertiary border-none outline-none focus:ring-1 focus:ring-sky/40 mb-2"
               />
               <div className="flex gap-1.5">
                 <button onClick={() => { setShowNotes(false); setNoteAction(null); setResponseNotes('') }}
                   className="h-6 px-2.5 bg-surface-600 text-text-secondary text-[11px] rounded cursor-pointer border-none">Cancel</button>
                 <button
-                  onClick={noteAction === 'confirm' ? handleConfirm : handleDecline}
-                  disabled={confirming || declining}
-                  className={`h-6 px-2.5 text-[11px] font-semibold rounded cursor-pointer border-none disabled:opacity-50 ${noteAction === 'confirm' ? 'bg-good-muted text-good' : 'bg-danger-muted text-danger'}`}
+                  onClick={handleDecline}
+                  className="h-6 px-2.5 text-[11px] font-semibold rounded cursor-pointer border-none bg-danger-muted text-danger"
                 >
-                  {noteAction === 'confirm' ? (confirming ? 'Confirming...' : 'Confirm') : (declining ? 'Declining...' : 'Decline')}
+                  Decline
                 </button>
               </div>
             </div>
@@ -381,17 +495,15 @@ export default function ArrivalCard({ arrival }) {
               <>
                 <button
                   onClick={handleConfirm}
-                  disabled={confirming}
-                  className="h-7 px-3 bg-good-muted hover:bg-good/25 text-good text-[12px] font-medium rounded-md cursor-pointer border-none disabled:opacity-50"
+                  className="h-7 px-3 bg-good-muted hover:bg-good/25 text-good text-[12px] font-medium rounded-md cursor-pointer border-none"
                 >
-                  {confirming ? 'Confirming...' : 'Confirm'}
+                  Confirm
                 </button>
                 <button
                   onClick={handleDecline}
-                  disabled={declining}
-                  className="h-7 px-3 bg-danger-muted hover:bg-danger/25 text-danger text-[12px] font-medium rounded-md cursor-pointer border-none disabled:opacity-50"
+                  className="h-7 px-3 bg-danger-muted hover:bg-danger/25 text-danger text-[12px] font-medium rounded-md cursor-pointer border-none"
                 >
-                  {declining ? 'Declining...' : 'Decline'}
+                  Decline
                 </button>
               </>
             )}
@@ -408,10 +520,9 @@ export default function ArrivalCard({ arrival }) {
                 <span className="text-[11px] text-text-tertiary">Cancel this arrival?</span>
                 <button
                   onClick={handleCancel}
-                  disabled={cancelling}
-                  className="h-7 px-3 bg-danger hover:bg-danger/90 text-white text-[12px] font-semibold rounded-md cursor-pointer border-none disabled:opacity-50"
+                  className="h-7 px-3 bg-danger hover:bg-danger/90 text-white text-[12px] font-semibold rounded-md cursor-pointer border-none"
                 >
-                  {cancelling ? 'Cancelling...' : 'Yes, Cancel'}
+                  Yes, Cancel
                 </button>
                 <button
                   onClick={() => setShowCancelConfirm(false)}
@@ -420,6 +531,17 @@ export default function ArrivalCard({ arrival }) {
                   No
                 </button>
               </div>
+            )}
+            {!showNotes && (
+              <button
+                onClick={startEdit}
+                className="h-7 px-2.5 text-[12px] font-medium rounded-md cursor-pointer border-none flex items-center gap-1 bg-sky/10 hover:bg-sky/20 text-sky"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+                <span className="hidden sm:inline">Edit</span>
+              </button>
             )}
             <div className={`flex items-center gap-1.5 ${isConfirmed && !showCancelConfirm ? '' : 'ml-auto'}`}>
               <button

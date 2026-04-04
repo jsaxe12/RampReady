@@ -154,13 +154,23 @@ export function FBOProvider({ children }) {
               })
             }
           } else if (payload.eventType === 'UPDATE') {
+            const a = payload.new
             setArrivals((prev) => {
               // If status changed to declined or cancelled, remove it
-              if (['declined', 'cancelled'].includes(payload.new.status)) {
-                return prev.filter((a) => a.id !== payload.new.id)
+              if (['declined', 'cancelled'].includes(a.status)) {
+                return prev.filter((x) => x.id !== a.id)
               }
-              return prev.map((a) => (a.id === payload.new.id ? payload.new : a))
+              return prev.map((x) => (x.id === a.id ? a : x))
             })
+            // Toast when a pilot edits the arrival
+            if (initialLoadDone.current && a.edited_by === 'pilot' && a.edited_at && a.status === 'pending') {
+              showToast({
+                title: 'Request Edited by Pilot',
+                body: `${a.tail_number || 'A pilot'} edited their request — review & re-confirm`,
+                type: 'arrival',
+                key: `arrival-edited-${a.id}-${a.edited_at}`,
+              })
+            }
           } else if (payload.eventType === 'DELETE') {
             setArrivals((prev) => prev.filter((a) => a.id !== payload.old.id))
           }
@@ -281,6 +291,31 @@ export function FBOProvider({ children }) {
         }
       } catch (e) {
         console.warn('[FBO] cancelArrival background failed:', e.message)
+      }
+    })()
+  }, [arrivals, notifyPilot])
+
+  // Edit arrival — optimistic: update UI instantly, reset to pending so FBO must re-confirm
+  const editArrival = useCallback(async (id, updates) => {
+    const arrival = arrivals.find(a => a.id === id)
+    const now = new Date().toISOString()
+    // Optimistic UI — merge edits + reset status to pending
+    setArrivals(prev => prev.map(a => a.id === id ? { ...a, ...updates, status: 'pending', edited_at: now, edited_by: 'fbo' } : a))
+    // All DB operations in background — never block the UI
+    ;(async () => {
+      try {
+        await supabase.from('arrivals').update({
+          ...updates, status: 'pending', edited_at: now, edited_by: 'fbo',
+        }).eq('id', id)
+        if (arrival?.service_request_id) {
+          supabase.from('service_requests').update({
+            ...updates, status: 'pending', edited_at: now, edited_by: 'fbo',
+          }).eq('id', arrival.service_request_id).catch(() => {})
+          notifyPilot(arrival.service_request_id, 'Request Updated by FBO',
+            `The FBO at {icao} has edited your request details`, 'info')
+        }
+      } catch (e) {
+        console.warn('[FBO] editArrival background failed:', e.message)
       }
     })()
   }, [arrivals, notifyPilot])
@@ -498,6 +533,7 @@ export function FBOProvider({ children }) {
         confirmArrival,
         declineArrival,
         cancelArrival,
+        editArrival,
         departures,
         loadingDepartures,
         markFueled,
