@@ -36,10 +36,32 @@ export function PilotPortalProvider({ children }) {
   }, [user])
 
   // Fetch service requests — no loading flash on refetch
+  // Also syncs status from arrivals table (FBO can update arrivals but not service_requests due to RLS)
   const fetchRequests = useCallback(async () => {
     if (!user) return
     const { data } = await supabase.from('service_requests').select('*').eq('pilot_id', user.id).order('created_at', { ascending: false })
     if (data) {
+      // Check for status mismatches with arrivals table (FBO updates arrivals, not service_requests)
+      const pendingIds = data.filter(r => r.status === 'pending').map(r => r.id)
+      if (pendingIds.length > 0) {
+        const { data: arrivalStatuses } = await supabase
+          .from('arrivals')
+          .select('service_request_id, status, fbo_response_notes')
+          .in('service_request_id', pendingIds)
+          .in('status', ['confirmed', 'declined', 'cancelled'])
+        if (arrivalStatuses?.length > 0) {
+          // Sync: pilot updates own service_requests rows to match arrival status
+          for (const arr of arrivalStatuses) {
+            const update = { status: arr.status }
+            if (arr.fbo_response_notes) update.fbo_response_notes = arr.fbo_response_notes
+            await supabase.from('service_requests').update(update).eq('id', arr.service_request_id)
+            // Update local data array too
+            const idx = data.findIndex(r => r.id === arr.service_request_id)
+            if (idx !== -1) data[idx] = { ...data[idx], ...update }
+          }
+        }
+      }
+
       // Toast for status changes found via polling
       if (initialLoadDone.current) {
         data.forEach(r => {
@@ -159,6 +181,41 @@ export function PilotPortalProvider({ children }) {
           type: n.type || 'info',
           key: `notif-${n.id}`,
         })
+      }
+    }).subscribe()
+    return () => supabase.removeChannel(ch)
+  }, [user, showToast])
+
+  // Ref so broadcast callback can read current requests without re-subscribing
+  const requestsRef = useRef(requests)
+  useEffect(() => { requestsRef.current = requests }, [requests])
+
+  // Real-time: direct broadcast from FBO — bypasses postgres_changes / RLS entirely
+  // This is the primary path for instant confirm/decline/cancel delivery.
+  // The pilot's own client also writes the status to service_requests (pilot owns the row
+  // via RLS, so this succeeds even when the FBO's cross-table update is blocked by RLS).
+  useEffect(() => {
+    if (!user) return
+    const ch = supabase.channel(`pilot-updates-${user.id}`).on('broadcast', { event: 'request_status' }, ({ payload }) => {
+      if (!payload?.requestId || !payload?.status) return
+      const update = { status: payload.status }
+      if (payload.fbo_response_notes) update.fbo_response_notes = payload.fbo_response_notes
+      // Optimistic UI update
+      setRequests(p => p.map(r => r.id === payload.requestId ? { ...r, ...update } : r))
+      // Persist to DB — pilot owns the row so RLS allows this
+      supabase.from('service_requests').update(update).eq('id', payload.requestId).then(({ error }) => {
+        if (error) console.warn('[Pilot] Failed to persist status from broadcast:', error.message)
+      })
+      if (initialLoadDone.current) {
+        const r = requestsRef.current.find(r => r.id === payload.requestId)
+        const label = r?.airport_icao || 'Your request'
+        if (payload.status === 'confirmed') {
+          showToast({ title: 'Request Confirmed', body: `${label} — confirmed by the FBO`, type: 'request_confirmed', key: `req-bc-confirmed-${payload.requestId}` })
+        } else if (payload.status === 'declined') {
+          showToast({ title: 'Request Declined', body: `${label} — FBO was unable to fulfill`, type: 'request_declined', key: `req-bc-declined-${payload.requestId}` })
+        } else if (payload.status === 'cancelled') {
+          showToast({ title: 'Request Cancelled', body: `${label} — cancelled by the FBO`, type: 'request_declined', key: `req-bc-cancelled-${payload.requestId}` })
+        }
       }
     }).subscribe()
     return () => supabase.removeChannel(ch)

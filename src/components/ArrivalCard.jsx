@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useFBO } from '../context/FBOContext'
 import { useAuth } from '../context/AuthContext'
 import { useADSB } from '../hooks/useADSB'
+import { supabase } from '../lib/supabase'
 import ServiceChip from './ServiceChip'
 import LiveTrackModal from './LiveTrackModal'
 
@@ -19,15 +20,18 @@ function RoleBadge({ role }) {
   )
 }
 
-function ChatInline({ arrivalId }) {
+function ChatInline({ arrivalId, requestId }) {
   const { fetchMessages, sendMessage, messages: realtimeMessages } = useFBO()
   const { fboProfile } = useAuth()
   const [msgs, setMsgs] = useState([])
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [pilotTyping, setPilotTyping] = useState(false)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
+  const typingTimeout = useRef(null)
+  const lastBroadcast = useRef(0)
 
   const senderName = fboProfile?.fbo_name || 'CSR'
 
@@ -42,22 +46,45 @@ function ChatInline({ arrivalId }) {
 
   useEffect(() => {
     if (realtimeMessages.length === 0) return
-    const latest = realtimeMessages[realtimeMessages.length - 1]
-    if (latest.arrival_id === arrivalId) {
-      setMsgs((prev) => {
-        if (prev.some((m) => m.id === latest.id)) return prev
-        return [...prev, latest]
-      })
-    }
+    setMsgs((prev) => {
+      const newMsgs = realtimeMessages.filter(m => m.arrival_id === arrivalId && !prev.some(p => p.id === m.id))
+      return newMsgs.length > 0 ? [...prev, ...newMsgs] : prev
+    })
   }, [realtimeMessages, arrivalId])
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-  }, [msgs])
+  }, [msgs, pilotTyping])
+
+  // Typing indicator via Supabase broadcast
+  const typingChannelId = requestId || arrivalId
+  useEffect(() => {
+    const ch = supabase.channel(`typing-${typingChannelId}`).on('broadcast', { event: 'typing' }, ({ payload }) => {
+      if (payload?.role === 'pilot') {
+        if (payload.stopped) { setPilotTyping(false); clearTimeout(typingTimeout.current); return }
+        setPilotTyping(true)
+        clearTimeout(typingTimeout.current)
+        typingTimeout.current = setTimeout(() => setPilotTyping(false), 3000)
+      }
+    }).subscribe()
+    return () => { supabase.removeChannel(ch); clearTimeout(typingTimeout.current) }
+  }, [typingChannelId])
+
+  const broadcastTyping = () => {
+    const now = Date.now()
+    if (now - lastBroadcast.current < 500) return
+    lastBroadcast.current = now
+    supabase.channel(`typing-${typingChannelId}`).send({ type: 'broadcast', event: 'typing', payload: { role: 'csr' } })
+  }
+
+  const broadcastStopTyping = () => {
+    supabase.channel(`typing-${typingChannelId}`).send({ type: 'broadcast', event: 'typing', payload: { role: 'csr', stopped: true } })
+  }
 
   const handleSend = async () => {
     if (!text.trim() || sending) return
     setSending(true)
+    broadcastStopTyping()
     const msg = await sendMessage({
       movementId: arrivalId,
       movementType: 'arrival',
@@ -91,7 +118,7 @@ function ChatInline({ arrivalId }) {
                 {m.sender_name && <span className="text-[10px] text-text-tertiary">{m.sender_name}</span>}
               </div>
               <div className={`max-w-[80%] px-2.5 py-1 rounded-lg text-[12px] leading-relaxed ${
-                m.sender_role === 'csr' ? 'bg-sky/20 text-text-primary rounded-br-sm' : 'bg-surface-700 text-text-primary rounded-bl-sm'
+                m.sender_role === 'csr' ? 'bg-sky/20 text-white rounded-br-sm' : 'bg-surface-700 text-white rounded-bl-sm'
               }`}>{m.body}</div>
               <span className="text-[9px] text-text-tertiary mt-0.5">
                 {new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
@@ -99,16 +126,23 @@ function ChatInline({ arrivalId }) {
             </div>
           ))
         )}
+        {pilotTyping && (
+          <div className="flex flex-col items-start">
+            <div className="bg-surface-700 px-3 py-2 rounded-lg rounded-bl-sm flex gap-1 items-center text-text-secondary">
+              <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
+            </div>
+          </div>
+        )}
       </div>
       <div className="flex gap-1.5">
         <input
           ref={inputRef}
           type="text"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => { setText(e.target.value); broadcastTyping() }}
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           placeholder="Message pilot..."
-          className="flex-1 h-7 px-2 bg-surface-700 rounded-md text-[12px] text-text-primary placeholder:text-text-tertiary border-none outline-none focus:ring-1 focus:ring-sky/40"
+          className="flex-1 h-7 px-2 bg-surface-700 rounded-md text-[12px] text-white placeholder:text-text-tertiary border-none outline-none focus:ring-1 focus:ring-sky/40"
         />
         <button
           onClick={handleSend}
@@ -570,7 +604,7 @@ export default function ArrivalCard({ arrival }) {
           </div>
 
           {/* Chat panel */}
-          {chatOpen && <ChatInline arrivalId={arrival.id} />}
+          {chatOpen && <ChatInline arrivalId={arrival.id} requestId={arrival.service_request_id} />}
         </div>
       </div>
 

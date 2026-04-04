@@ -74,8 +74,11 @@ function ConversationView() {
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const [fboName, setFboName] = useState('')
+  const [fboTyping, setFboTyping] = useState(false)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
+  const typingTimeout = useRef(null)
+  const lastBroadcast = useRef(0)
 
   const req = requests.find(r => r.id === requestId)
 
@@ -101,14 +104,39 @@ function ConversationView() {
     return () => supabase.removeChannel(ch)
   }, [requestId])
 
+  // Typing indicator via Supabase broadcast
+  useEffect(() => {
+    const ch = supabase.channel(`typing-${requestId}`).on('broadcast', { event: 'typing' }, ({ payload }) => {
+      if (payload?.role === 'csr') {
+        if (payload.stopped) { setFboTyping(false); clearTimeout(typingTimeout.current); return }
+        setFboTyping(true)
+        clearTimeout(typingTimeout.current)
+        typingTimeout.current = setTimeout(() => setFboTyping(false), 3000)
+      }
+    }).subscribe()
+    return () => { supabase.removeChannel(ch); clearTimeout(typingTimeout.current) }
+  }, [requestId])
+
+  const broadcastTyping = () => {
+    const now = Date.now()
+    if (now - lastBroadcast.current < 500) return
+    lastBroadcast.current = now
+    supabase.channel(`typing-${requestId}`).send({ type: 'broadcast', event: 'typing', payload: { role: 'pilot' } })
+  }
+
+  const broadcastStopTyping = () => {
+    supabase.channel(`typing-${requestId}`).send({ type: 'broadcast', event: 'typing', payload: { role: 'pilot', stopped: true } })
+  }
+
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-  }, [msgs])
+  }, [msgs, fboTyping])
 
   const handleSend = async (body) => {
     const b = body || text.trim()
     if (!b || sending) return
     setSending(true)
+    broadcastStopTyping()
     const msg = await sendMessage({ requestId, body: b.slice(0, 500) })
     if (msg) setMsgs(p => { if (p.some(m => m.id === msg.id)) return p; return [...p, msg] })
     setText('')
@@ -150,6 +178,15 @@ function ConversationView() {
             </div>
           ))
         )}
+        {fboTyping && (
+          <div className="flex flex-col items-start">
+            <div className="px-4 py-3 rounded-2xl rounded-bl-sm flex gap-1.5 items-center" style={{ background: '#0E1525' }}>
+              <span className="typing-dot" style={{ color: '#4A566E' }} />
+              <span className="typing-dot" style={{ color: '#4A566E' }} />
+              <span className="typing-dot" style={{ color: '#4A566E' }} />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Quick replies */}
@@ -165,7 +202,7 @@ function ConversationView() {
 
       {/* Input */}
       <div className="flex gap-3 pt-2">
-        <input ref={inputRef} type="text" value={text} onChange={e => setText(e.target.value.slice(0, 500))}
+        <input ref={inputRef} type="text" value={text} onChange={e => { setText(e.target.value.slice(0, 500)); broadcastTyping() }}
           onKeyDown={e => e.key === 'Enter' && handleSend()}
           placeholder="Message..." className="flex-1 h-12 rounded-xl px-5 text-[14px] border-none outline-none"
           style={{ background: '#0E1525', color: '#E8EDF7', caretColor: '#4EADFF' }} />

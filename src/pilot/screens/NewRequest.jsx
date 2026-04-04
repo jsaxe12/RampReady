@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { usePilotPortal } from '../PilotContext'
@@ -77,16 +77,28 @@ export default function NewRequest() {
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [searching, setSearching] = useState(false)
+  const debounceRef = useRef(null)
 
-  useEffect(() => {
-    if (airportQuery.length >= 2 && !selectedAirport) {
-      searchFBOs(airportQuery).then(data => {
+  const handleAirportSearch = useCallback((q) => {
+    setAirportQuery(q)
+    setSelectedAirport('')
+    clearTimeout(debounceRef.current)
+    if (q.length < 2) { setAirportResults([]); setSearching(false); return }
+    setSearching(true)
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const data = await searchFBOs(q)
         const airports = {}
         data.forEach(f => { airports[f.airport_icao] = { icao: f.airport_icao, name: f.airport_name } })
         setAirportResults(Object.values(airports))
-      })
-    } else { setAirportResults([]) }
-  }, [airportQuery, selectedAirport, searchFBOs])
+      } catch (e) {
+        console.warn('[NewRequest] Airport search failed:', e.message)
+        setAirportResults([])
+      }
+      setSearching(false)
+    }, 250)
+  }, [searchFBOs])
 
   useEffect(() => {
     if (selectedAirport && !prefill.fbo) searchFBOsByAirport(selectedAirport).then(setFbos)
@@ -133,12 +145,20 @@ export default function NewRequest() {
       {step === 1 && (
         <div>
           <h2 className="text-[32px] mb-6" style={{ color: '#E8EDF7', fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700 }}>Where are you headed?</h2>
-          <input type="text" value={airportQuery} onChange={e => { setAirportQuery(e.target.value); setSelectedAirport('') }}
+          <input type="text" value={airportQuery} onChange={e => handleAirportSearch(e.target.value)}
             placeholder="Search airport or ICAO..." autoFocus
             className="w-full h-14 rounded-xl px-5 text-[16px] uppercase border-none outline-none mb-4"
             style={{ ...inputStyle, fontFamily: "'DM Mono', monospace", caretColor: '#4EADFF' }} />
-          {airportResults.map(a => (
-            <button key={a.icao} onClick={() => { setSelectedAirport(a.icao); setAirportQuery(a.icao); setStep(2) }}
+          {searching ? (
+            <div className="flex justify-center py-6">
+              <div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: '#4EADFF', borderTopColor: 'transparent' }} />
+            </div>
+          ) : airportQuery.length >= 2 && airportResults.length === 0 && !selectedAirport ? (
+            <div className="rounded-xl p-6 text-center mb-2" style={{ background: '#0E1525' }}>
+              <p className="text-[13px]" style={{ color: '#4A566E' }}>No airports found for "{airportQuery}"</p>
+            </div>
+          ) : airportResults.map(a => (
+            <button key={a.icao} onClick={() => { setSelectedAirport(a.icao); setAirportQuery(a.icao); setAirportResults([]); setStep(2) }}
               className="w-full rounded-xl px-5 py-4 mb-2 border-none cursor-pointer text-left"
               style={{ background: '#0E1525' }}>
               <span className="text-[16px] font-medium" style={{ color: '#4EADFF', fontFamily: "'DM Mono', monospace" }}>{a.icao}</span>
