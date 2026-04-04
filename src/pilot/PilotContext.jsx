@@ -223,16 +223,65 @@ export function PilotPortalProvider({ children }) {
     }).select().single()
     if (!error && data) {
       setRequests(p => [data, ...p])
+      // Background: create arrival + notify FBO (non-blocking so UI stays responsive)
+      ;(async () => {
+        try {
+          // Create the arrival record for the FBO if a DB trigger hasn't already done so
+          const { data: existingArr } = await supabase.from('arrivals').select('id').eq('service_request_id', data.id).maybeSingle()
+          if (!existingArr) {
+            await supabase.from('arrivals').insert({
+              fbo_id: req.fboId,
+              pilot_id: user.id,
+              service_request_id: data.id,
+              tail_number: req.tailNumber,
+              aircraft_type: req.aircraftType,
+              eta: req.eta,
+              pax_count: req.paxCount || 0,
+              services: req.services || [],
+              fuel_type: req.fuelType || null,
+              fuel_quantity: req.fuelQuantity || null,
+              pilot_notes: req.pilotNotes || '',
+              status: 'pending',
+            })
+          }
+          await supabase.from('notifications').insert({
+            user_id: req.fboId,
+            title: 'New Service Request',
+            body: `${req.tailNumber} ${req.aircraftType || ''} — ETA ${req.eta || 'TBD'}`.trim(),
+            type: 'arrival',
+          })
+        } catch (e) {
+          console.warn('[Pilot] Background sync failed (non-blocking):', e.message)
+        }
+      })()
       return data
     }
     return null
   }, [user])
 
-  // Cancel request
+  // Cancel request — optimistic: update UI instantly, sync to FBO in background
   const cancelRequest = useCallback(async (id) => {
-    const { error } = await supabase.from('service_requests').update({ status: 'cancelled' }).eq('id', id)
-    if (!error) setRequests(p => p.map(r => r.id === id ? { ...r, status: 'cancelled' } : r))
-  }, [])
+    const req = requests.find(r => r.id === id)
+    // Optimistic UI update — request shows cancelled immediately
+    setRequests(p => p.map(r => r.id === id ? { ...r, status: 'cancelled' } : r))
+    // All DB operations in background — never block the UI
+    ;(async () => {
+      try {
+        await supabase.from('service_requests').update({ status: 'cancelled' }).eq('id', id)
+        await supabase.from('arrivals').update({ status: 'cancelled' }).eq('service_request_id', id)
+        if (req?.fbo_id) {
+          await supabase.from('notifications').insert({
+            user_id: req.fbo_id,
+            title: 'Request Cancelled',
+            body: `${req.tail_number || 'A pilot'} cancelled their request at ${req.airport_icao || 'your FBO'}`,
+            type: 'info',
+          })
+        }
+      } catch (e) {
+        console.warn('[Pilot] Cancel sync failed (non-blocking):', e.message)
+      }
+    })()
+  }, [requests])
 
   // Messages
   const fetchMessages = useCallback(async (requestId) => {
@@ -243,8 +292,15 @@ export function PilotPortalProvider({ children }) {
   const sendMessage = useCallback(async ({ requestId, body }) => {
     if (!user) return null
     const req = requests.find(r => r.id === requestId)
+    // Look up the corresponding arrival so FBO-side chat (which queries by arrival_id) can see it
+    let arrivalId = null
+    if (requestId) {
+      const { data: arrData } = await supabase.from('arrivals').select('id').eq('service_request_id', requestId).maybeSingle()
+      if (arrData) arrivalId = arrData.id
+    }
     const { data, error } = await supabase.from('messages').insert({
       request_id: requestId,
+      arrival_id: arrivalId,
       fbo_id: req?.fbo_id,
       pilot_id: user.id,
       sender_role: 'pilot',

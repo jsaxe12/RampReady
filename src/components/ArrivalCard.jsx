@@ -213,9 +213,14 @@ export default function ArrivalCard({ arrival }) {
       return
     }
     setConfirming(true)
-    await confirmArrival(arrival.id, responseNotes)
-    setConfirming(false)
-    setShowNotes(false)
+    try {
+      await confirmArrival(arrival.id, responseNotes)
+    } catch (e) {
+      console.error('[ArrivalCard] confirm failed:', e)
+    } finally {
+      setConfirming(false)
+      setShowNotes(false)
+    }
   }
 
   const handleDecline = async () => {
@@ -225,16 +230,26 @@ export default function ArrivalCard({ arrival }) {
       return
     }
     setDeclining(true)
-    await declineArrival(arrival.id, responseNotes)
-    setDeclining(false)
-    setShowNotes(false)
+    try {
+      await declineArrival(arrival.id, responseNotes)
+    } catch (e) {
+      console.error('[ArrivalCard] decline failed:', e)
+    } finally {
+      setDeclining(false)
+      setShowNotes(false)
+    }
   }
 
   const handleCancel = async () => {
     setCancelling(true)
-    await cancelArrival(arrival.id)
-    setCancelling(false)
-    setShowCancelConfirm(false)
+    try {
+      await cancelArrival(arrival.id)
+    } catch (e) {
+      console.error('[ArrivalCard] cancel failed:', e)
+    } finally {
+      setCancelling(false)
+      setShowCancelConfirm(false)
+    }
   }
 
   return (

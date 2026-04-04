@@ -170,12 +170,32 @@ function SignInModal({ open, onClose }) {
     }
   }, [open, clearError])
 
-  const doLogin = useCallback(async () => {
+  const doLogin = useCallback(async (isAutoSubmit = false) => {
     if (loadingRef.current) return
     const form = formRef.current
     if (!form) return
 
-    await new Promise((r) => requestAnimationFrame(r))
+    if (isAutoSubmit) {
+      // Safari/Chrome biometric autofill commits values in stages.
+      // A single rAF is not enough — the password .value can still be
+      // stale/placeholder when read too early after Touch ID / Face ID.
+      // Wait for the values to fully stabilize before sending to Supabase.
+      await new Promise((r) => setTimeout(r, 400))
+      // Re-check: if user already triggered a manual submit, bail out
+      if (loadingRef.current) return
+      // Read values, wait, read again — only proceed if they're stable
+      const e1 = form.email?.value?.trim()
+      const p1 = form.password?.value
+      if (!e1 || !p1) return
+      await new Promise((r) => setTimeout(r, 200))
+      if (loadingRef.current) return
+      const e2 = form.email?.value?.trim()
+      const p2 = form.password?.value
+      if (!e2 || !p2 || e1 !== e2 || p1 !== p2) return // still changing — don't submit
+    } else {
+      // Manual submit — just wait one frame for DOM to settle
+      await new Promise((r) => requestAnimationFrame(r))
+    }
 
     const email = form.email?.value?.trim()
     const password = form.password?.value
@@ -203,18 +223,21 @@ function SignInModal({ open, onClose }) {
     const form = formRef.current
     if (!form) return
     let timers = []
+    let cancelled = false
     const check = () => {
-      if (loadingRef.current) return
+      if (cancelled || loadingRef.current) return
       const e = form.email?.value?.trim()
       const p = form.password?.value
-      if (e && p) doLogin()
+      if (e && p) doLogin(true) // true = autofill path with stabilization delay
     }
-    const onChange = () => { timers.push(setTimeout(check, 80)) }
+    const onChange = () => { timers.push(setTimeout(check, 150)) }
     form.addEventListener('change', onChange, true)
     form.addEventListener('input', onChange, true)
-    timers.push(setTimeout(check, 300))
-    timers.push(setTimeout(check, 800))
+    // Scheduled checks for autofills that don't fire standard events
+    timers.push(setTimeout(check, 600))
+    timers.push(setTimeout(check, 1200))
     return () => {
+      cancelled = true
       timers.forEach(clearTimeout)
       form.removeEventListener('change', onChange, true)
       form.removeEventListener('input', onChange, true)

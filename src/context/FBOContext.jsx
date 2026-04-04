@@ -189,7 +189,7 @@ export function FBOProvider({ children }) {
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setDepartures((prev) => [...prev, payload.new].sort((a, b) => a.etd.localeCompare(b.etd)))
+            setDepartures((prev) => [...prev, payload.new].sort((a, b) => (a.etd || '').localeCompare(b.etd || '')))
           } else if (payload.eventType === 'UPDATE') {
             setDepartures((prev) => {
               if (payload.new.status === 'departed') {
@@ -209,52 +209,81 @@ export function FBOProvider({ children }) {
     }
   }, [user])
 
-  // Confirm arrival — update in Supabase, optionally with notes
-  const confirmArrival = useCallback(async (id, responseNotes) => {
-    const update = { status: 'confirmed' }
-    const { error } = await supabase
-      .from('arrivals')
-      .update(update)
-      .eq('id', id)
-    if (!error) {
-      // If this is a pilot request, also store the response notes on the service_request
-      if (responseNotes) {
-        const arrival = arrivals.find(a => a.id === id)
-        if (arrival?.service_request_id) {
-          await supabase.from('service_requests').update({ fbo_response_notes: responseNotes }).eq('id', arrival.service_request_id)
-        }
+  // Notify pilot helper — fire-and-forget, never blocks the UI
+  const notifyPilot = useCallback(async (serviceRequestId, title, body, type) => {
+    try {
+      const { data: sr } = await supabase.from('service_requests').select('pilot_id, airport_icao').eq('id', serviceRequestId).maybeSingle()
+      if (sr?.pilot_id) {
+        await supabase.from('notifications').insert({
+          user_id: sr.pilot_id, title, type,
+          body: body.replace('{icao}', sr.airport_icao || 'the FBO'),
+          related_request_id: serviceRequestId,
+        })
       }
-      setArrivals((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'confirmed' } : a)))
-    }
-  }, [arrivals])
-
-  // Decline arrival — update status in Supabase, optionally with notes
-  const declineArrival = useCallback(async (id, responseNotes) => {
-    const { error } = await supabase
-      .from('arrivals')
-      .update({ status: 'declined' })
-      .eq('id', id)
-    if (!error) {
-      if (responseNotes) {
-        const arrival = arrivals.find(a => a.id === id)
-        if (arrival?.service_request_id) {
-          await supabase.from('service_requests').update({ fbo_response_notes: responseNotes }).eq('id', arrival.service_request_id)
-        }
-      }
-      setArrivals((prev) => prev.filter((a) => a.id !== id))
-    }
-  }, [arrivals])
-
-  // Cancel arrival — update status in Supabase
-  const cancelArrival = useCallback(async (id) => {
-    const { error } = await supabase
-      .from('arrivals')
-      .update({ status: 'cancelled' })
-      .eq('id', id)
-    if (!error) {
-      setArrivals((prev) => prev.filter((a) => a.id !== id))
+    } catch (e) {
+      console.warn('[FBO] Pilot notification failed (non-blocking):', e.message)
     }
   }, [])
+
+  // Confirm arrival — optimistic: update UI instantly, then persist to DB in background
+  const confirmArrival = useCallback(async (id, responseNotes) => {
+    const arrival = arrivals.find(a => a.id === id)
+    // Optimistic UI update — card shows confirmed immediately
+    setArrivals((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'confirmed' } : a)))
+    // All DB operations run in background — never block the UI
+    ;(async () => {
+      try {
+        await supabase.from('arrivals').update({ status: 'confirmed' }).eq('id', id)
+        if (arrival?.service_request_id) {
+          const srUpdate = { status: 'confirmed' }
+          if (responseNotes) srUpdate.fbo_response_notes = responseNotes
+          supabase.from('service_requests').update(srUpdate).eq('id', arrival.service_request_id).catch(() => {})
+          notifyPilot(arrival.service_request_id, 'Request Confirmed',
+            `Your request at {icao} has been confirmed${responseNotes ? ': ' + responseNotes : ''}`, 'request_confirmed')
+        }
+      } catch (e) {
+        console.warn('[FBO] confirmArrival background failed:', e.message)
+      }
+    })()
+  }, [arrivals, notifyPilot])
+
+  // Decline arrival — optimistic: remove from UI instantly
+  const declineArrival = useCallback(async (id, responseNotes) => {
+    const arrival = arrivals.find(a => a.id === id)
+    setArrivals((prev) => prev.filter((a) => a.id !== id))
+    ;(async () => {
+      try {
+        await supabase.from('arrivals').update({ status: 'declined' }).eq('id', id)
+        if (arrival?.service_request_id) {
+          const srUpdate = { status: 'declined' }
+          if (responseNotes) srUpdate.fbo_response_notes = responseNotes
+          supabase.from('service_requests').update(srUpdate).eq('id', arrival.service_request_id).catch(() => {})
+          notifyPilot(arrival.service_request_id, 'Request Declined',
+            `Your request at {icao} was declined${responseNotes ? ': ' + responseNotes : ''}`, 'request_declined')
+        }
+      } catch (e) {
+        console.warn('[FBO] declineArrival background failed:', e.message)
+      }
+    })()
+  }, [arrivals, notifyPilot])
+
+  // Cancel arrival — optimistic: remove from UI instantly
+  const cancelArrival = useCallback(async (id) => {
+    const arrival = arrivals.find(a => a.id === id)
+    setArrivals((prev) => prev.filter((a) => a.id !== id))
+    ;(async () => {
+      try {
+        await supabase.from('arrivals').update({ status: 'cancelled' }).eq('id', id)
+        if (arrival?.service_request_id) {
+          supabase.from('service_requests').update({ status: 'cancelled' }).eq('id', arrival.service_request_id).catch(() => {})
+          notifyPilot(arrival.service_request_id, 'Arrival Cancelled',
+            'Your arrival at {icao} has been cancelled by the FBO', 'request_declined')
+        }
+      } catch (e) {
+        console.warn('[FBO] cancelArrival background failed:', e.message)
+      }
+    })()
+  }, [arrivals, notifyPilot])
 
   // Add arrival — insert into Supabase
   const addArrival = useCallback(async (arrival) => {
@@ -353,8 +382,23 @@ export function FBOProvider({ children }) {
       sender_name: senderName,
       body,
     }
-    if (movementType === 'arrival') payload.arrival_id = movementId
-    else payload.departure_id = movementId
+    if (movementType === 'arrival') {
+      payload.arrival_id = movementId
+      // Include request_id and pilot_id so pilot-side queries & Realtime work
+      const arrival = arrivals.find(a => a.id === movementId)
+      if (arrival?.service_request_id) {
+        payload.request_id = arrival.service_request_id
+        // Get pilot_id from arrival or look it up from the service_request
+        if (arrival.pilot_id) {
+          payload.pilot_id = arrival.pilot_id
+        } else {
+          const { data: sr } = await supabase.from('service_requests').select('pilot_id').eq('id', arrival.service_request_id).maybeSingle()
+          if (sr?.pilot_id) payload.pilot_id = sr.pilot_id
+        }
+      }
+    } else {
+      payload.departure_id = movementId
+    }
 
     const { data, error } = await supabase
       .from('messages')
@@ -363,7 +407,7 @@ export function FBOProvider({ children }) {
       .single()
     if (!error && data) return data
     return null
-  }, [user])
+  }, [user, arrivals])
 
   // Real-time subscription for messages
   useEffect(() => {
