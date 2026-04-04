@@ -392,11 +392,11 @@ export default function ArrivalCard({ arrival }) {
               {/* Fuel info from pilot request */}
               {arrival.fuel_type && (
                 <div className="flex items-center gap-1">
-                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-sky/15 text-sky">
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${arrival.fuel_type === 'Avgas' ? 'bg-good-muted text-good' : 'bg-sky-muted text-sky'}`}>
                     {arrival.fuel_type}
                   </span>
                   {arrival.fuel_quantity && (
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-sky/15 text-sky">
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${arrival.fuel_type === 'Avgas' ? 'bg-good-muted text-good' : 'bg-sky-muted text-sky'}`}>
                       {arrival.fuel_quantity}g
                     </span>
                   )}

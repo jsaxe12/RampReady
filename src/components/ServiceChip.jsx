@@ -1,7 +1,18 @@
+const SERVICE_COLORS = {
+  'Avgas':              'bg-good-muted text-good',
+  'Jet-A':              'bg-sky-muted text-sky',
+  'Ramp parking':       'bg-svc-parking-muted text-svc-parking',
+  'Hangar overnight':   'bg-svc-hangar-muted text-svc-hangar',
+  'Crew car':           'bg-svc-crewcar-muted text-svc-crewcar',
+  'GPU / Ground power': 'bg-svc-gpu-muted text-svc-gpu',
+  'Lav service':        'bg-svc-lav-muted text-svc-lav',
+  'De-icing':           'bg-svc-deice-muted text-svc-deice',
+  'Catering':           'bg-svc-catering-muted text-svc-catering',
+  'Other':              'bg-svc-other-muted text-svc-other',
+}
+
 export default function ServiceChip({ service, size = 'sm' }) {
-  let classes = 'bg-surface-600/60 text-text-secondary'
-  if (service === 'Avgas') classes = 'bg-good-muted text-good'
-  else if (service === 'Jet-A') classes = 'bg-sky-muted text-sky'
+  const classes = SERVICE_COLORS[service] || 'bg-svc-other-muted text-svc-other'
 
   const sizeClasses =
     size === 'lg'

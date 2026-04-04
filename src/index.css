@@ -25,6 +25,24 @@
   --color-danger: #ff3b30;
   --color-danger-muted: rgba(255, 59, 48, 0.12);
 
+  /* Service chip colors — each service gets a unique hue */
+  --color-svc-parking: #f0ad4e;
+  --color-svc-parking-muted: rgba(240, 173, 78, 0.12);
+  --color-svc-hangar: #a78bfa;
+  --color-svc-hangar-muted: rgba(167, 139, 250, 0.12);
+  --color-svc-crewcar: #2dd4bf;
+  --color-svc-crewcar-muted: rgba(45, 212, 191, 0.12);
+  --color-svc-gpu: #fb923c;
+  --color-svc-gpu-muted: rgba(251, 146, 60, 0.12);
+  --color-svc-lav: #f472b6;
+  --color-svc-lav-muted: rgba(244, 114, 182, 0.12);
+  --color-svc-deice: #7dd3fc;
+  --color-svc-deice-muted: rgba(125, 211, 252, 0.12);
+  --color-svc-catering: #fbbf24;
+  --color-svc-catering-muted: rgba(251, 191, 36, 0.12);
+  --color-svc-other: #94a3b8;
+  --color-svc-other-muted: rgba(148, 163, 184, 0.12);
+
   /* Text */
   --color-text-primary: #e8e8ed;
   --color-text-secondary: #8e8e93;
